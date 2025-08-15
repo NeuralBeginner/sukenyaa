@@ -7,15 +7,12 @@ WORKDIR /app
 # Copy package.json and package-lock.json (if available)
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install all dependencies including dev dependencies for building
+RUN npm ci
 
 # Copy TypeScript configuration and source code
 COPY tsconfig.json ./
 COPY src/ ./src/
-
-# Install development dependencies for building
-RUN npm install --only=dev
 
 # Build the TypeScript code
 RUN npm run build

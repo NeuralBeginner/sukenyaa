@@ -15,10 +15,10 @@ export class NyaaScraper {
       timeout: config.scraping.timeoutMs,
       headers: {
         'User-Agent': config.scraping.userAgent,
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.5',
         'Accept-Encoding': 'gzip, deflate',
-        'Connection': 'keep-alive',
+        Connection: 'keep-alive',
         'Upgrade-Insecure-Requests': '1',
       },
     });
@@ -29,7 +29,7 @@ export class NyaaScraper {
 
     const page = options.page || 1;
     const limit = Math.min(options.limit || 75, 75); // Nyaa shows max 75 items per page
-    
+
     try {
       const url = this.buildSearchUrl(filters, options);
       logger.info({ url, filters, options }, 'Searching nyaa.si');
@@ -60,7 +60,9 @@ export class NyaaScraper {
       };
     } catch (error) {
       logger.error({ error, filters, options }, 'Failed to search nyaa.si');
-      throw new Error(`Failed to search nyaa.si: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to search nyaa.si: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -83,12 +85,12 @@ export class NyaaScraper {
 
     if (options.sort) {
       const sortMap: Record<string, string> = {
-        'date': 'id',
-        'size': 'size',
-        'seeders': 'seeders',
-        'leechers': 'leechers',
-        'downloads': 'downloads',
-        'title': 'name',
+        date: 'id',
+        size: 'size',
+        seeders: 'seeders',
+        leechers: 'leechers',
+        downloads: 'downloads',
+        title: 'name',
       };
       params.set('s', sortMap[options.sort] || 'id');
     }
@@ -190,11 +192,11 @@ export class NyaaScraper {
     const unit = match[2].toUpperCase();
 
     const multipliers: Record<string, number> = {
-      'B': 1,
-      'KB': 1024,
-      'MB': 1024 * 1024,
-      'GB': 1024 * 1024 * 1024,
-      'TB': 1024 * 1024 * 1024 * 1024,
+      B: 1,
+      KB: 1024,
+      MB: 1024 * 1024,
+      GB: 1024 * 1024 * 1024,
+      TB: 1024 * 1024 * 1024 * 1024,
     };
 
     return Math.floor(value * (multipliers[unit] || 0));
@@ -271,7 +273,7 @@ export class NyaaScraper {
 
     if (timeSinceLastRequest < minDelay) {
       const delay = minDelay - timeSinceLastRequest;
-      await new Promise(resolve => setTimeout(resolve, delay));
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
 
     this.lastRequestTime = Date.now();

@@ -80,15 +80,17 @@ export interface MetaInfo {
   awards?: string | undefined;
   website?: string | undefined;
   trailer?: string | undefined;
-  videos?: Array<{
-    id: string;
-    title: string;
-    season?: number;
-    episode?: number;
-    thumbnail?: string;
-    overview?: string;
-    released?: string;
-  }> | undefined;
+  videos?:
+    | Array<{
+        id: string;
+        title: string;
+        season?: number;
+        episode?: number;
+        thumbnail?: string;
+        overview?: string;
+        released?: string;
+      }>
+    | undefined;
 }
 
 export interface CacheEntry<T> {

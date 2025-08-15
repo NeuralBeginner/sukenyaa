@@ -98,8 +98,8 @@ class Server {
       });
     });
 
-    // Catch-all for undefined routes
-    this.app.use('*', (req, res) => {
+    // 404 handler for undefined routes
+    this.app.use((req, res) => {
       res.status(404).json({
         error: 'Not Found',
         message: `Route ${req.method} ${req.originalUrl} not found`,

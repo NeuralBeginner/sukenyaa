@@ -106,7 +106,10 @@ class RateLimiter {
   getStats(): { totalKeys: number; activeRequests: number } {
     return {
       totalKeys: this.requests.size,
-      activeRequests: Array.from(this.requests.values()).reduce((sum, entry) => sum + entry.count, 0),
+      activeRequests: Array.from(this.requests.values()).reduce(
+        (sum, entry) => sum + entry.count,
+        0
+      ),
     };
   }
 

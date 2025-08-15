@@ -7,11 +7,7 @@ export const manifest: any = {
   description: config.addon.description,
   logo: config.addon.logo,
   background: config.addon.background,
-  resources: [
-    'catalog',
-    'meta',
-    'stream'
-  ],
+  resources: ['catalog', 'meta', 'stream'],
   types: ['movie', 'series', 'anime', 'other'],
   catalogs: [
     {
@@ -21,18 +17,34 @@ export const manifest: any = {
       extra: [
         {
           name: 'search',
-          isRequired: false
+          isRequired: false,
         },
         {
           name: 'genre',
           isRequired: false,
-          options: ['Action', 'Adventure', 'Comedy', 'Drama', 'Fantasy', 'Horror', 'Mecha', 'Music', 'Mystery', 'Romance', 'Sci-Fi', 'Slice of Life', 'Sports', 'Supernatural', 'Thriller']
+          options: [
+            'Action',
+            'Adventure',
+            'Comedy',
+            'Drama',
+            'Fantasy',
+            'Horror',
+            'Mecha',
+            'Music',
+            'Mystery',
+            'Romance',
+            'Sci-Fi',
+            'Slice of Life',
+            'Sports',
+            'Supernatural',
+            'Thriller',
+          ],
         },
         {
           name: 'skip',
-          isRequired: false
-        }
-      ]
+          isRequired: false,
+        },
+      ],
     },
     {
       type: 'anime',
@@ -41,18 +53,34 @@ export const manifest: any = {
       extra: [
         {
           name: 'search',
-          isRequired: false
+          isRequired: false,
         },
         {
           name: 'genre',
           isRequired: false,
-          options: ['Action', 'Adventure', 'Comedy', 'Drama', 'Fantasy', 'Horror', 'Mecha', 'Music', 'Mystery', 'Romance', 'Sci-Fi', 'Slice of Life', 'Sports', 'Supernatural', 'Thriller']
+          options: [
+            'Action',
+            'Adventure',
+            'Comedy',
+            'Drama',
+            'Fantasy',
+            'Horror',
+            'Mecha',
+            'Music',
+            'Mystery',
+            'Romance',
+            'Sci-Fi',
+            'Slice of Life',
+            'Sports',
+            'Supernatural',
+            'Thriller',
+          ],
         },
         {
           name: 'skip',
-          isRequired: false
-        }
-      ]
+          isRequired: false,
+        },
+      ],
     },
     {
       type: 'movie',
@@ -61,13 +89,13 @@ export const manifest: any = {
       extra: [
         {
           name: 'search',
-          isRequired: false
+          isRequired: false,
         },
         {
           name: 'skip',
-          isRequired: false
-        }
-      ]
+          isRequired: false,
+        },
+      ],
     },
     {
       type: 'other',
@@ -76,22 +104,22 @@ export const manifest: any = {
       extra: [
         {
           name: 'search',
-          isRequired: false
+          isRequired: false,
         },
         {
           name: 'skip',
-          isRequired: false
-        }
-      ]
-    }
+          isRequired: false,
+        },
+      ],
+    },
   ],
   idPrefixes: ['nyaa:'],
   behaviorHints: {
     adult: false,
     p2p: true,
     configurable: true,
-    configurationRequired: false
-  }
+    configurationRequired: false,
+  },
 };
 
 export default manifest;

@@ -11,7 +11,7 @@ router.get('/health', async (req: Request, res: Response) => {
   try {
     const health = await healthService.getHealthStatus();
     const statusCode = health.status === 'healthy' ? 200 : health.status === 'degraded' ? 206 : 503;
-    
+
     res.status(statusCode).json(health);
   } catch (error) {
     logger.error({ error }, 'Health check failed');

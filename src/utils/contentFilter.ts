@@ -20,11 +20,14 @@ export class ContentFilter {
     }
 
     // Block specific categories
-    const categoryMatches = config.contentFilter.blockedCategories.some(blockedCat => 
+    const categoryMatches = config.contentFilter.blockedCategories.some((blockedCat) =>
       torrent.category.includes(blockedCat)
     );
     if (categoryMatches) {
-      logger.warn({ category: torrent.category, title: torrent.title }, 'Blocked torrent due to prohibited category');
+      logger.warn(
+        { category: torrent.category, title: torrent.title },
+        'Blocked torrent due to prohibited category'
+      );
       return false;
     }
 
@@ -48,11 +51,11 @@ export class ContentFilter {
   private static isNsfw(torrent: TorrentItem): boolean {
     // Categories that are considered NSFW
     const nsfwCategories = ['6_0', '6_1', '6_2']; // Sukebei categories
-    return nsfwCategories.some(cat => torrent.category.startsWith(cat));
+    return nsfwCategories.some((cat) => torrent.category.startsWith(cat));
   }
 
   static filterTorrents(torrents: TorrentItem[]): TorrentItem[] {
-    return torrents.filter(torrent => this.isAllowed(torrent));
+    return torrents.filter((torrent) => this.isAllowed(torrent));
   }
 }
 

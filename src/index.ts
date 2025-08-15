@@ -16,7 +16,12 @@ async function main(): Promise<void> {
 
     logger.info('SukeNyaa addon is ready to serve content!');
   } catch (error) {
-    logger.fatal({ error }, 'Failed to start application');
+    logger.fatal({ error: error instanceof Error ? { 
+      message: error.message, 
+      stack: error.stack,
+      name: error.name 
+    } : error }, 'Failed to start application');
+    console.error('Startup error:', error);
     process.exit(1);
   }
 }

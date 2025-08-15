@@ -34,9 +34,23 @@ export const config = {
     strictMinorContentExclusion: process.env.STRICT_MINOR_CONTENT_EXCLUSION !== 'false',
     blockedCategories: ['1_3'], // Sukebei real/Junior Idol category
     blockedKeywords: [
-      'loli', 'shota', 'junior', 'child', 'kid', 'underage',
-      'elementary', 'school girl', 'school boy', 'jc', 'js',
-      'u15', 'u12', 'u18', 'young', 'teen', 'minor'
+      'loli',
+      'shota',
+      'junior',
+      'child',
+      'kid',
+      'underage',
+      'elementary',
+      'school girl',
+      'school boy',
+      'jc',
+      'js',
+      'u15',
+      'u12',
+      'u18',
+      'young',
+      'teen',
+      'minor',
     ],
     trustedUploadersOnly: false,
   },
@@ -47,7 +61,9 @@ export const config = {
   },
   addon: {
     name: process.env.ADDON_NAME || 'SukeNyaa',
-    description: process.env.ADDON_DESCRIPTION || 'Unofficial Stremio addon for nyaa.si and sukebei.nyaa.si content',
+    description:
+      process.env.ADDON_DESCRIPTION ||
+      'Unofficial Stremio addon for nyaa.si and sukebei.nyaa.si content',
     version: process.env.ADDON_VERSION || '1.0.0',
     logo: process.env.ADDON_LOGO || 'https://nyaa.si/static/img/avatar/default.png',
     background: process.env.ADDON_BACKGROUND || 'https://nyaa.si/static/img/logo.png',

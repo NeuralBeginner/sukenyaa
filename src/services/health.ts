@@ -14,7 +14,7 @@ class HealthService {
   constructor() {
     this.nyaaScraper = new NyaaScraper(config.externalServices.nyaaBaseUrl);
     this.sukebeiScraper = new NyaaScraper(config.externalServices.sukebeiBaseUrl);
-    
+
     this.lastHealthStatus = {
       status: 'unknown' as any,
       timestamp: new Date().toISOString(),
@@ -66,7 +66,7 @@ class HealthService {
     } as const;
 
     // Calculate overall status
-    const servicesDown = Object.values(services).filter(status => status === 'down').length;
+    const servicesDown = Object.values(services).filter((status) => status === 'down').length;
     const status = servicesDown === 0 ? 'healthy' : servicesDown === 1 ? 'degraded' : 'unhealthy';
 
     this.lastHealthStatus = {

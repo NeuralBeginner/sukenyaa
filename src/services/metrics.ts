@@ -9,12 +9,15 @@ interface Metrics {
   cacheHits: number;
   cacheMisses: number;
   cacheHitRate: number;
-  endpoints: Record<string, {
-    count: number;
-    errors: number;
-    totalTime: number;
-    averageTime: number;
-  }>;
+  endpoints: Record<
+    string,
+    {
+      count: number;
+      errors: number;
+      totalTime: number;
+      averageTime: number;
+    }
+  >;
 }
 
 class MetricsService {
@@ -47,11 +50,12 @@ class MetricsService {
       const originalSend = res.send.bind(res);
       res.send = (body: any) => {
         const responseTime = Date.now() - startTime;
-        
+
         // Update global metrics
         this.metrics.requestCount++;
         this.metrics.totalResponseTime += responseTime;
-        this.metrics.averageResponseTime = this.metrics.totalResponseTime / this.metrics.requestCount;
+        this.metrics.averageResponseTime =
+          this.metrics.totalResponseTime / this.metrics.requestCount;
 
         // Update endpoint metrics
         const endpointMetrics = this.metrics.endpoints[endpoint]!;
@@ -66,13 +70,16 @@ class MetricsService {
         }
 
         // Log request
-        logger.info({
-          method: req.method,
-          url: req.url,
-          statusCode: res.statusCode,
-          responseTime,
-          userAgent: req.get('User-Agent'),
-        }, 'HTTP Request');
+        logger.info(
+          {
+            method: req.method,
+            url: req.url,
+            statusCode: res.statusCode,
+            responseTime,
+            userAgent: req.get('User-Agent'),
+          },
+          'HTTP Request'
+        );
 
         return originalSend(body);
       };

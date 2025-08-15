@@ -45,11 +45,11 @@ class AddonService {
 
         // Build search filters from catalog parameters
         const filters: SearchFilters = {};
-        
+
         if (args.extra?.search) {
           filters.query = args.extra.search;
         }
-        
+
         filters.trusted = args.id.includes('trusted');
 
         // Map catalog type to nyaa category
@@ -71,16 +71,19 @@ class AddonService {
         }
 
         const searchResult = await this.nyaaScraper.search(filters, options);
-        const metas = searchResult.items.map(item => this.torrentToMeta(item));
+        const metas = searchResult.items.map((item) => this.torrentToMeta(item));
 
         const result = { metas };
         await cacheService.set(cacheKey, result, 300); // Cache for 5 minutes
 
-        logger.info({ 
-          args, 
-          itemCount: metas.length, 
-          responseTime: Date.now() - startTime 
-        }, 'Catalog request completed');
+        logger.info(
+          {
+            args,
+            itemCount: metas.length,
+            responseTime: Date.now() - startTime,
+          },
+          'Catalog request completed'
+        );
 
         return result;
       } catch (error) {
@@ -113,7 +116,7 @@ class AddonService {
         const options = { page: 1, limit: 1 };
 
         const searchResult = await this.nyaaScraper.search(filters, options);
-        
+
         if (searchResult.items.length === 0) {
           throw new Error('Content not found');
         }
@@ -124,11 +127,14 @@ class AddonService {
         const result = { meta };
         await cacheService.set(cacheKey, result, 3600); // Cache for 1 hour
 
-        logger.info({ 
-          args, 
-          title: item.title, 
-          responseTime: Date.now() - startTime 
-        }, 'Meta request completed');
+        logger.info(
+          {
+            args,
+            title: item.title,
+            responseTime: Date.now() - startTime,
+          },
+          'Meta request completed'
+        );
 
         return result;
       } catch (error) {
@@ -158,24 +164,27 @@ class AddonService {
         const searchQuery = decodeURIComponent(id);
 
         const filters: SearchFilters = { query: searchQuery };
-        const options = { 
-          page: 1, 
+        const options = {
+          page: 1,
           limit: 10,
           sort: 'seeders' as const,
           order: 'desc' as const,
         };
 
         const searchResult = await this.nyaaScraper.search(filters, options);
-        const streams = searchResult.items.map(item => this.torrentToStream(item));
+        const streams = searchResult.items.map((item) => this.torrentToStream(item));
 
         const result = { streams };
         await cacheService.set(cacheKey, result, 1800); // Cache for 30 minutes
 
-        logger.info({ 
-          args, 
-          streamCount: streams.length, 
-          responseTime: Date.now() - startTime 
-        }, 'Stream request completed');
+        logger.info(
+          {
+            args,
+            streamCount: streams.length,
+            responseTime: Date.now() - startTime,
+          },
+          'Stream request completed'
+        );
 
         return result;
       } catch (error) {
