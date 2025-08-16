@@ -144,6 +144,51 @@ Le serveur est optimisé pour fonctionner sur localhost (127.0.0.1) et est compa
 - Taux de succès du cache
 - État des services externes
 
+## 📱 Android/Termux
+
+### Installation rapide
+
+Pour installer sur Android avec Termux, consultez le guide détaillé : [INSTALL_ANDROID.md](INSTALL_ANDROID.md)
+
+```bash
+# Installation rapide sur Termux
+pkg update && pkg install nodejs git
+git clone https://github.com/NeuralBeginner/sukenyaa.git
+cd sukenyaa && npm install && npm run build
+npm start
+```
+
+### Scripts de debug
+
+```bash
+# Test rapide du scraper
+npm run test:scraper
+
+# Debug de connectivité réseau
+npm run debug:scraper
+
+# Tests complets
+npm test
+```
+
+### Debugging sur Android
+
+**Problèmes courants :**
+
+1. **Catalogue vide** : Vérifiez la connectivité avec `npm run debug:scraper`
+2. **Addon non détecté** : Utilisez l'URL exacte `http://localhost:3000/manifest.json`
+3. **Performance lente** : Surveillez les logs pour `responseTime` > 2000ms
+
+**Logs à surveiller :**
+```bash
+# Logs de succès
+{"msg":"Catalog request completed successfully","itemCount":50}
+
+# Logs d'erreur
+{"msg":"Catalog request failed","error":"..."}
+{"msg":"Blocked torrent due to prohibited keywords"}
+```
+
 ## 🤝 Contribution
 
 Les contributions sont les bienvenues ! Consultez [CONTRIBUTING.md](CONTRIBUTING.md) pour les guidelines.

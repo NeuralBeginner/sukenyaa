@@ -126,7 +126,7 @@ export class NyaaScraper {
         const title = titleElement.attr('title') || titleElement.text().trim();
         if (!title) return;
 
-        const magnetLink = nameCell.find('a[href^="magnet:"]').attr('href');
+        const magnetLink = row.find('a[href^="magnet:"]').attr('href');
         if (!magnetLink) return;
 
         const id = this.extractIdFromMagnet(magnetLink) || this.generateId(title);

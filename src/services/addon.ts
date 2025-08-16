@@ -222,15 +222,27 @@ class AddonService {
   }
 
   private getContentType(category: string): string {
-    if (category.startsWith('1_')) return 'anime';
-    if (category.startsWith('4_')) return 'movie';
+    // Check both category codes and text
+    if (category.startsWith('1_') || category.toLowerCase().includes('anime')) return 'anime';
+    if (category.startsWith('4_') || category.toLowerCase().includes('live action')) return 'movie';
     return 'other';
   }
 
   private generatePosterUrl(torrent: TorrentItem): string {
-    // Generate a placeholder poster based on the content
+    // Generate a better placeholder poster based on the content type
     const type = this.getContentType(torrent.category);
-    return `https://via.placeholder.com/300x450/1a1a1a/ffffff?text=${encodeURIComponent(type.toUpperCase())}`;
+    
+    // Use different colors and styling for different content types
+    const configs = {
+      anime: { bg: '2c3e50', fg: 'e74c3c', emoji: '🎌' },
+      movie: { bg: '34495e', fg: 'f39c12', emoji: '🎬' },
+      other: { bg: '1a1a1a', fg: 'ffffff', emoji: '📁' }
+    };
+    
+    const config = configs[type as keyof typeof configs] || configs.other;
+    const title = encodeURIComponent(`${config.emoji} ${type.toUpperCase()}`);
+    
+    return `https://via.placeholder.com/300x450/${config.bg}/${config.fg}?text=${title}`;
   }
 
   private generateDescription(torrent: TorrentItem): string {
@@ -272,7 +284,22 @@ class AddonService {
   }
 
   private extractYear(title: string): string | undefined {
-    const yearMatch = title.match(/\b(19|20)\d{2}\b/);
+    // Try to extract year from common anime title patterns
+    
+    // Pattern: [Year] Title or (Year) Title  
+    const bracketMatch = title.match(/[\[\(](20[0-2]\d)[\]\)]/);
+    if (bracketMatch) return bracketMatch[1];
+    
+    // Pattern: Title Year or Title (Year)
+    const spaceMatch = title.match(/\b(20[0-2]\d)\b/);
+    if (spaceMatch) return spaceMatch[1];
+    
+    // Pattern: Season year like S1 2023, Season 2023, etc.
+    const seasonMatch = title.match(/(?:S\d+|Season)\s+(20[0-2]\d)/i);
+    if (seasonMatch) return seasonMatch[1];
+    
+    // Fallback to any 4-digit year between 1990-2030
+    const yearMatch = title.match(/\b(19[9]\d|20[0-3]\d)\b/);
     return yearMatch ? yearMatch[0] : undefined;
   }
 
@@ -356,8 +383,35 @@ class AddonService {
         options.page = Math.floor(parseInt(args.extra.skip) / options.limit) + 1;
       }
 
+      logger.info({ 
+        args, 
+        filters, 
+        options, 
+        cacheKey 
+      }, 'Processing catalog request');
+
       const searchResult = await this.nyaaScraper.search(filters, options);
+      
+      logger.info({
+        args,
+        searchResultCount: searchResult.items.length,
+        totalPages: searchResult.pagination.totalPages,
+        totalItems: searchResult.pagination.totalItems
+      }, 'Search completed, converting to metas');
+
       const metas = searchResult.items.map((item) => this.torrentToMeta(item));
+
+      logger.info({
+        args,
+        metasGenerated: metas.length,
+        sampleMeta: metas[0] ? {
+          id: metas[0].id,
+          type: metas[0].type,
+          name: metas[0].name?.substring(0, 50) + '...',
+          hasYear: !!metas[0].year,
+          genreCount: metas[0].genres?.length || 0
+        } : null
+      }, 'Metas conversion completed');
 
       const result = { metas };
       await cacheService.set(cacheKey, result, 300); // Cache for 5 minutes
@@ -366,12 +420,27 @@ class AddonService {
         args,
         itemCount: metas.length,
         responseTime: Date.now() - startTime,
-      }, 'Catalog request completed');
+      }, 'Catalog request completed successfully');
 
       return result;
     } catch (error) {
-      logger.error({ error, args }, 'Catalog request failed');
-      throw error;
+      logger.error({ 
+        error: error instanceof Error ? {
+          message: error.message,
+          stack: error.stack,
+          name: error.name
+        } : error, 
+        args,
+        responseTime: Date.now() - startTime
+      }, 'Catalog request failed');
+      
+      // Return empty result instead of throwing to provide better UX
+      const emptyResult = { metas: [] };
+      
+      // Cache empty result briefly to avoid repeated failed requests
+      await cacheService.set(cacheKey, emptyResult, 60); // Cache for 1 minute
+      
+      return emptyResult;
     }
   }
 
