@@ -10,6 +10,7 @@ import { metricsService } from './services/metrics';
 import { healthService } from './services/health';
 import { cacheService } from './services/cache';
 import { addonService } from './services/addon';
+import { configurationService } from './services/config';
 import apiRoutes from './routes/api';
 
 class Server {
@@ -214,7 +215,10 @@ class Server {
         res.json(result);
       } catch (error) {
         logger.error({ error, params: req.params, query: req.query }, 'Catalog request failed');
-        res.status(500).json({ error: 'Internal Server Error' });
+        
+        // Provide helpful error response for mobile users
+        const errorResponse = this.generateMobileErrorResponse(error, 'catalog', req.params);
+        res.status(500).json(errorResponse);
       }
     });
 
@@ -226,7 +230,10 @@ class Server {
         res.json(result);
       } catch (error) {
         logger.error({ error, params: req.params, query: req.query }, 'Meta request failed');
-        res.status(500).json({ error: 'Internal Server Error' });
+        
+        // Provide helpful error response for mobile users
+        const errorResponse = this.generateMobileErrorResponse(error, 'meta', req.params);
+        res.status(500).json(errorResponse);
       }
     });
 
@@ -238,7 +245,78 @@ class Server {
         res.json(result);
       } catch (error) {
         logger.error({ error, params: req.params, query: req.query }, 'Stream request failed');
-        res.status(500).json({ error: 'Internal Server Error' });
+        
+        // Provide helpful error response for mobile users  
+        const errorResponse = this.generateMobileErrorResponse(error, 'stream', req.params);
+        res.status(500).json(errorResponse);
+      }
+    });
+
+    // Configuration endpoint
+    this.app.get('/configure', async (req, res) => {
+      try {
+        const schema = configurationService.getConfigurationSchema();
+        const currentConfig = await configurationService.getUserConfiguration();
+        
+        // Generate an interactive configuration page
+        const configPage = this.generateConfigurationPage(schema, currentConfig);
+        
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.send(configPage);
+      } catch (error) {
+        logger.error({ error }, 'Configuration page request failed');
+        res.status(500).json({ error: 'Failed to load configuration page' });
+      }
+    });
+
+    // Configuration API endpoints
+    this.app.get('/configure/api', async (req, res) => {
+      try {
+        const currentConfig = await configurationService.getUserConfiguration();
+        res.json({
+          configuration: currentConfig,
+          schema: configurationService.getConfigurationSchema()
+        });
+      } catch (error) {
+        logger.error({ error }, 'Configuration API request failed');
+        res.status(500).json({ error: 'Failed to get configuration' });
+      }
+    });
+
+    this.app.post('/configure/api', async (req, res) => {
+      try {
+        const updates = req.body;
+        const updatedConfig = await configurationService.saveUserConfiguration(updates);
+        
+        res.json({
+          success: true,
+          configuration: updatedConfig,
+          message: 'Configuration updated successfully'
+        });
+      } catch (error) {
+        logger.error({ error }, 'Configuration update failed');
+        res.status(500).json({ 
+          success: false,
+          error: 'Failed to update configuration' 
+        });
+      }
+    });
+
+    this.app.post('/configure/reset', async (req, res) => {
+      try {
+        const resetConfig = await configurationService.resetUserConfiguration();
+        
+        res.json({
+          success: true,
+          configuration: resetConfig,
+          message: 'Configuration reset to defaults'
+        });
+      } catch (error) {
+        logger.error({ error }, 'Configuration reset failed');
+        res.status(500).json({ 
+          success: false,
+          error: 'Failed to reset configuration' 
+        });
       }
     });
 
@@ -259,7 +337,10 @@ class Server {
           testCatalog: '/test/catalog/anime/nyaa-anime-all.json',
           testMeta: '/test/meta/anime/nyaa:12345.json', 
           testStream: '/test/stream/anime/nyaa:12345.json',
+          configure: '/configure',
           health: '/api/health',
+          mobileHealth: '/api/mobile-health',
+          networkTest: '/api/network-test',
           metrics: '/api/metrics',
           info: '/api/info',
         },
@@ -372,12 +453,346 @@ class Server {
           'GET /catalog/:type/:id.json',
           'GET /meta/:type/:id.json', 
           'GET /stream/:type/:id.json',
+          'GET /configure',
+          'POST /configure/api',
+          'POST /configure/reset',
           'GET /api/health',
+          'GET /api/mobile-health',
+          'GET /api/network-test',
           'GET /api/metrics',
           'GET /api/info',
         ],
       });
     });
+  }
+
+  private generateConfigurationPage(schema: any, currentConfig: any): string {
+    const sections = schema.sections.map((section: any) => {
+      const fields = section.fields.map((field: any) => {
+        const value = currentConfig[field.key];
+        
+        let fieldHtml = '';
+        switch (field.type) {
+          case 'boolean':
+            fieldHtml = `
+              <div class="field-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" name="${field.key}" ${value ? 'checked' : ''}>
+                  <span class="checkbox-custom"></span>
+                  <strong>${field.label}</strong>
+                </label>
+                <p class="field-description">${field.description}</p>
+              </div>
+            `;
+            break;
+            
+          case 'select':
+            const options = field.options.map((opt: any) => 
+              `<option value="${opt.value}" ${value === opt.value ? 'selected' : ''}>${opt.label}</option>`
+            ).join('');
+            fieldHtml = `
+              <div class="field-group">
+                <label for="${field.key}"><strong>${field.label}</strong></label>
+                <select name="${field.key}" id="${field.key}">
+                  ${options}
+                </select>
+                <p class="field-description">${field.description}</p>
+              </div>
+            `;
+            break;
+            
+          case 'multiselect':
+            const checkboxes = field.options.map((opt: any) => 
+              `<label class="checkbox-label">
+                <input type="checkbox" name="${field.key}" value="${opt.value}" ${value.includes(opt.value) ? 'checked' : ''}>
+                <span class="checkbox-custom"></span>
+                ${opt.label}
+              </label>`
+            ).join('');
+            fieldHtml = `
+              <div class="field-group">
+                <label><strong>${field.label}</strong></label>
+                <div class="checkbox-group">
+                  ${checkboxes}
+                </div>
+                <p class="field-description">${field.description}</p>
+              </div>
+            `;
+            break;
+            
+          case 'number':
+            fieldHtml = `
+              <div class="field-group">
+                <label for="${field.key}"><strong>${field.label}</strong></label>
+                <input type="number" name="${field.key}" id="${field.key}" value="${value}" 
+                       min="${field.min || ''}" max="${field.max || ''}">
+                <p class="field-description">${field.description}</p>
+              </div>
+            `;
+            break;
+        }
+        
+        return fieldHtml;
+      }).join('');
+      
+      return `
+        <div class="config-section">
+          <h3>${section.name}</h3>
+          <p class="section-description">${section.description}</p>
+          ${fields}
+        </div>
+      `;
+    }).join('');
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SukeNyaa Configuration</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            margin: 0; padding: 20px; background: #1a1a1a; color: #ffffff; line-height: 1.6;
+        }
+        .container { max-width: 800px; margin: 0 auto; }
+        h1 { color: #4CAF50; text-align: center; margin-bottom: 30px; }
+        .config-section { 
+            background: #2a2a2a; padding: 25px; margin: 20px 0; border-radius: 8px; 
+            border-left: 4px solid #4CAF50;
+        }
+        .config-section h3 { color: #4CAF50; margin-top: 0; }
+        .section-description { color: #cccccc; margin-bottom: 20px; }
+        .field-group { margin: 20px 0; }
+        .field-group label { display: block; margin-bottom: 8px; color: #ffffff; }
+        .field-group input, .field-group select { 
+            width: 100%; padding: 12px; border: 1px solid #555; background: #333; color: #fff; 
+            border-radius: 4px; font-size: 14px;
+        }
+        .field-group input:focus, .field-group select:focus { 
+            outline: none; border-color: #4CAF50; box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+        }
+        .checkbox-label { 
+            display: flex; align-items: center; margin: 8px 0; cursor: pointer; color: #ffffff;
+        }
+        .checkbox-label input[type="checkbox"] { 
+            appearance: none; width: 20px; height: 20px; border: 2px solid #555; 
+            border-radius: 3px; margin-right: 10px; position: relative; flex-shrink: 0;
+        }
+        .checkbox-label input[type="checkbox"]:checked { 
+            background: #4CAF50; border-color: #4CAF50;
+        }
+        .checkbox-label input[type="checkbox"]:checked::after {
+            content: '✓'; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+            color: white; font-size: 14px; font-weight: bold;
+        }
+        .checkbox-group { margin: 10px 0; }
+        .field-description { color: #aaa; font-size: 13px; margin-top: 5px; }
+        .actions { text-align: center; margin: 30px 0; }
+        .btn { 
+            background: #4CAF50; color: white; border: none; padding: 12px 24px; 
+            border-radius: 5px; cursor: pointer; font-size: 16px; margin: 0 10px;
+            transition: background 0.3s;
+        }
+        .btn:hover { background: #45a049; }
+        .btn-secondary { background: #FF5722; }
+        .btn-secondary:hover { background: #E64A19; }
+        .status { 
+            padding: 15px; margin: 20px 0; border-radius: 5px; text-align: center; display: none;
+        }
+        .status.success { background: rgba(76, 175, 80, 0.2); border: 1px solid #4CAF50; }
+        .status.error { background: rgba(244, 67, 54, 0.2); border: 1px solid #f44336; }
+        .back-link { 
+            display: inline-block; margin-bottom: 20px; color: #4CAF50; text-decoration: none;
+        }
+        .back-link:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back-link">← Back to Main</a>
+        <h1>🔧 SukeNyaa Configuration</h1>
+        <p style="text-align: center; color: #cccccc;">Customize your SukeNyaa addon preferences and filtering options.</p>
+        
+        <div id="status" class="status"></div>
+        
+        <form id="configForm">
+            ${sections}
+            
+            <div class="actions">
+                <button type="submit" class="btn">💾 Save Configuration</button>
+                <button type="button" class="btn btn-secondary" onclick="resetConfig()">🔄 Reset to Defaults</button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('configForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            await saveConfiguration();
+        });
+
+        async function saveConfiguration() {
+            const form = document.getElementById('configForm');
+            const formData = new FormData(form);
+            const config = {};
+            
+            // Process form data
+            for (const [key, value] of formData.entries()) {
+                if (config[key]) {
+                    // Multiple values for same key (multiselect)
+                    if (!Array.isArray(config[key])) {
+                        config[key] = [config[key]];
+                    }
+                    config[key].push(value);
+                } else {
+                    config[key] = value;
+                }
+            }
+            
+            // Handle checkboxes
+            const checkboxes = form.querySelectorAll('input[type="checkbox"]');
+            checkboxes.forEach(checkbox => {
+                if (checkbox.name && !config[checkbox.name]) {
+                    if (checkbox.hasAttribute('value')) {
+                        // Multiselect checkbox
+                        config[checkbox.name] = [];
+                    } else {
+                        // Boolean checkbox
+                        config[checkbox.name] = false;
+                    }
+                }
+            });
+            
+            // Convert number inputs
+            const numberInputs = form.querySelectorAll('input[type="number"]');
+            numberInputs.forEach(input => {
+                if (config[input.name]) {
+                    config[input.name] = parseInt(config[input.name]);
+                }
+            });
+            
+            // Convert boolean inputs
+            Object.keys(config).forEach(key => {
+                const checkbox = form.querySelector(\`input[type="checkbox"][name="\${key}"]:not([value])\`);
+                if (checkbox) {
+                    config[key] = !!config[key];
+                }
+            });
+            
+            try {
+                const response = await fetch('/configure/api', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(config)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showStatus('✅ Configuration saved successfully!', 'success');
+                } else {
+                    showStatus('❌ Failed to save configuration: ' + result.error, 'error');
+                }
+            } catch (error) {
+                showStatus('❌ Error saving configuration: ' + error.message, 'error');
+            }
+        }
+
+        async function resetConfig() {
+            if (!confirm('Are you sure you want to reset all settings to defaults?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/configure/reset', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    showStatus('✅ Configuration reset to defaults!', 'success');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    showStatus('❌ Failed to reset configuration: ' + result.error, 'error');
+                }
+            } catch (error) {
+                showStatus('❌ Error resetting configuration: ' + error.message, 'error');
+            }
+        }
+
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = 'status ' + type;
+            status.style.display = 'block';
+            
+            setTimeout(() => {
+                status.style.display = 'none';
+            }, 5000);
+        }
+    </script>
+</body>
+</html>`;
+  }
+
+  private generateMobileErrorResponse(error: any, endpoint: string, params: any): any {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
+    // Detect common error types and provide helpful messages
+    let userFriendlyMessage = '';
+    let troubleshootingSteps = [];
+    
+    if (errorMessage.includes('ENOTFOUND') || errorMessage.includes('ECONNREFUSED')) {
+      userFriendlyMessage = 'Network connection error. Unable to reach nyaa.si';
+      troubleshootingSteps = [
+        'Check your internet connection',
+        'Try switching from mobile data to WiFi',
+        'Wait a few minutes and try again',
+        'Check if nyaa.si is accessible in your browser'
+      ];
+    } else if (errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
+      userFriendlyMessage = 'Request timed out. The server is taking too long to respond';
+      troubleshootingSteps = [
+        'Check your network connection speed',
+        'Try again with a more stable connection',
+        'Reduce the number of results in configuration if possible'
+      ];
+    } else if (errorMessage.includes('rate limit') || errorMessage.includes('429')) {
+      userFriendlyMessage = 'Too many requests. Please wait before trying again';
+      troubleshootingSteps = [
+        'Wait 1-2 minutes before making another request',
+        'Avoid making too many searches in quick succession',
+        'Consider increasing cache timeout in configuration'
+      ];
+    } else if (errorMessage.includes('Parse') || errorMessage.includes('JSON')) {
+      userFriendlyMessage = 'Data parsing error. The response format was unexpected';
+      troubleshootingSteps = [
+        'This might be a temporary issue with nyaa.si',
+        'Try again in a few minutes',
+        'Check if the site is working properly'
+      ];
+    } else {
+      userFriendlyMessage = `${endpoint} service temporarily unavailable`;
+      troubleshootingSteps = [
+        'Check your internet connection',
+        'Try again in a few minutes',
+        'Restart the app if the problem persists',
+        'Check the health endpoint: /api/mobile-health'
+      ];
+    }
+    
+    return {
+      error: 'Service Error',
+      message: userFriendlyMessage,
+      endpoint: endpoint,
+      troubleshooting: troubleshootingSteps,
+      technicalDetails: config.server.nodeEnv === 'development' ? {
+        originalError: errorMessage,
+        params: params
+      } : undefined,
+      timestamp: new Date().toISOString(),
+      helpUrl: '/api/mobile-health'
+    };
   }
 
   private setupErrorHandling(): void {
