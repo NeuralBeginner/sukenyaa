@@ -5,8 +5,9 @@ import { logger } from '../utils/logger';
 import { cacheService } from './cache';
 import { metricsService } from './metrics';
 import { configurationService } from './config';
+import { integrationService } from './integrationService';
 import NyaaScraper from './nyaaScraper';
-import { TorrentItem, SearchFilters, MetaInfo, StreamInfo } from '../types';
+import { TorrentItem, SearchFilters, MetaInfo, StreamInfo, EnhancedMetaInfo } from '../types';
 
 interface AddonArgs {
   type: string;
@@ -114,7 +115,16 @@ class AddonService {
           filteredItems = this.filterByLanguage(filteredItems, userConfig.preferredLanguages);
         }
 
-        const metas = filteredItems.map((item) => this.torrentToMeta(item));
+        const metas = await Promise.all(
+          filteredItems.map(async (item) => {
+            const basicMeta = this.torrentToMeta(item);
+            // Enhanced metadata through integrations (TMDB, cross-references)
+            if (userConfig.enablePosters || userConfig.enableSynopsis || userConfig.enableTags) {
+              return await integrationService.enhanceMetadata(item, basicMeta);
+            }
+            return basicMeta;
+          })
+        );
 
         // Handle empty results with user-friendly message
         if (metas.length === 0) {
@@ -208,7 +218,13 @@ class AddonService {
         }
 
         const item = searchResult.items[0]!;
-        const meta = this.torrentToMeta(item);
+        let meta = this.torrentToMeta(item);
+        
+        // Enhanced metadata through integrations (TMDB, cross-references)
+        const userConfig = await configurationService.getUserConfiguration();
+        if (userConfig.enablePosters || userConfig.enableSynopsis || userConfig.enableTags) {
+          meta = await integrationService.enhanceMetadata(item, meta);
+        }
 
         const result = { meta };
         await cacheService.set(cacheKey, result, 3600); // Cache for 1 hour

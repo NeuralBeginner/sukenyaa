@@ -2,6 +2,9 @@ import { Router, Request, Response } from 'express';
 import { healthService } from '../services/health';
 import { metricsService } from '../services/metrics';
 import { cacheService } from '../services/cache';
+import { integrationService } from '../services/integrationService';
+import { tmdbIntegrationService } from '../services/tmdbIntegration';
+import { stremioIntegrationService } from '../services/stremioIntegration';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -93,6 +96,12 @@ router.get('/info', (req: Request, res: Response) => {
     name: 'SukeNyaa',
     version: '1.0.0',
     description: 'Unofficial Stremio addon for nyaa.si and sukebei.nyaa.si content',
+    features: {
+      tmdbIntegration: 'Automatic metadata enhancement with TMDB',
+      stremioExtensionDetection: 'Cross-extension compatibility and syncing',
+      intelligentCaching: 'Smart caching with metadata priority',
+      plugAndPlay: 'Zero-configuration automatic setup',
+    },
     endpoints: {
       manifest: '/manifest.json',
       configure: '/configure',
@@ -100,9 +109,13 @@ router.get('/info', (req: Request, res: Response) => {
       metrics: '/metrics',
       mobileHealth: '/mobile-health',
       networkTest: '/network-test',
+      integrations: '/integrations',
+      tmdbStatus: '/integrations/tmdb/status',
+      extensionScan: '/integrations/extensions/scan',
       cache: {
         stats: '/cache/stats',
         clear: '/cache/clear (POST)',
+        clearIntegrations: '/integrations/cache/clear (POST)',
       },
     },
     documentation: 'https://github.com/MehdiDlaPgl/sukenyaa',
@@ -147,6 +160,208 @@ router.get('/network-test', async (req: Request, res: Response) => {
   } catch (error) {
     logger.error({ error }, 'Failed to perform network test');
     res.status(500).json({ error: 'Failed to perform network test' });
+  }
+});
+
+// ================================
+// INTEGRATION ENDPOINTS
+// ================================
+
+// Main integration status endpoint
+router.get('/integrations', async (req: Request, res: Response) => {
+  try {
+    const status = await integrationService.getIntegrationStatus();
+    const diagnostics = await integrationService.getDiagnostics();
+    
+    res.json({
+      timestamp: new Date().toISOString(),
+      enabled: integrationService.isEnabled(),
+      status,
+      summary: {
+        tmdbAvailable: status.tmdb.available,
+        extensionsDetected: status.extensions.detected,
+        tmdbCompatibleExtensions: status.extensions.tmdbCompatible,
+        conflictsDetected: status.extensions.conflicts.length,
+      },
+      recommendations: diagnostics.recommendations,
+    });
+  } catch (error) {
+    logger.error({ error }, 'Failed to get integration status');
+    res.status(500).json({ error: 'Failed to retrieve integration status' });
+  }
+});
+
+// TMDB integration status
+router.get('/integrations/tmdb/status', async (req: Request, res: Response) => {
+  try {
+    const tmdbStatus = await tmdbIntegrationService.getStatus();
+    
+    res.json({
+      timestamp: new Date().toISOString(),
+      tmdb: tmdbStatus,
+      logs: {
+        info: 'TMDB integration provides enhanced metadata including posters, descriptions, and ratings',
+        configuration: {
+          required: 'TMDB_API_KEY environment variable',
+          optional: [
+            'TMDB_ENABLED (default: true)',
+            'TMDB_CACHE_TIMEOUT (default: 3600)',
+            'TMDB_RATE_LIMIT_MS (default: 250)',
+          ],
+        },
+        documentation: 'https://developers.themoviedb.org/3/getting-started/introduction',
+      },
+    });
+  } catch (error) {
+    logger.error({ error }, 'Failed to get TMDB status');
+    res.status(500).json({ error: 'Failed to retrieve TMDB status' });
+  }
+});
+
+// Stremio extensions detection and status
+router.get('/integrations/extensions', async (req: Request, res: Response) => {
+  try {
+    const extensions = stremioIntegrationService.getDetectedExtensions();
+    const conflicts = stremioIntegrationService.getConflicts();
+    const status = await stremioIntegrationService.getStatus();
+    
+    res.json({
+      timestamp: new Date().toISOString(),
+      extensions: extensions.map(ext => ({
+        id: ext.id,
+        name: ext.name,
+        version: ext.version,
+        description: ext.description,
+        capabilities: ext.capabilities,
+        baseUrl: ext.baseUrl,
+        isActive: ext.isActive,
+      })),
+      status,
+      conflicts,
+      logs: {
+        info: 'Automatic detection of other Stremio extensions for cross-referencing and metadata sharing',
+        detectionPorts: [3000, 8080, 7000, 11470, 11471, 11472, 11473, 11474, 11475],
+        configuration: {
+          optional: [
+            'STREMIO_INTEGRATION_ENABLED (default: true)',
+            'STREMIO_DETECTION_INTERVAL (default: 300000ms)',
+            'STREMIO_CROSS_REFERENCE (default: true)',
+            'STREMIO_KNOWN_EXTENSIONS (comma-separated URLs)',
+          ],
+        },
+      },
+    });
+  } catch (error) {
+    logger.error({ error }, 'Failed to get extensions status');
+    res.status(500).json({ error: 'Failed to retrieve extensions status' });
+  }
+});
+
+// Force refresh extensions scan
+router.post('/integrations/extensions/scan', async (req: Request, res: Response) => {
+  try {
+    logger.info({ 
+      ip: req.ip,
+      userAgent: req.get('User-Agent'),
+    }, 'Manual extension scan requested');
+    
+    await stremioIntegrationService.refreshExtensions();
+    const extensions = stremioIntegrationService.getDetectedExtensions();
+    
+    res.json({
+      timestamp: new Date().toISOString(),
+      message: 'Extension scan completed',
+      detected: extensions.length,
+      extensions: extensions.map(ext => ({
+        id: ext.id,
+        name: ext.name,
+        capabilities: ext.capabilities,
+      })),
+    });
+  } catch (error) {
+    logger.error({ error }, 'Failed to scan for extensions');
+    res.status(500).json({ error: 'Failed to scan for extensions' });
+  }
+});
+
+// Force refresh all integrations
+router.post('/integrations/refresh', async (req: Request, res: Response) => {
+  try {
+    logger.info({
+      ip: req.ip,
+      userAgent: req.get('User-Agent'),
+    }, 'Manual integration refresh requested');
+    
+    await integrationService.refreshIntegrations();
+    const status = await integrationService.getIntegrationStatus();
+    
+    res.json({
+      timestamp: new Date().toISOString(),
+      message: 'All integrations refreshed successfully',
+      status,
+    });
+  } catch (error) {
+    logger.error({ error }, 'Failed to refresh integrations');
+    res.status(500).json({ error: 'Failed to refresh integrations' });
+  }
+});
+
+// Integration diagnostics endpoint
+router.get('/integrations/diagnostics', async (req: Request, res: Response) => {
+  try {
+    const diagnostics = await integrationService.getDiagnostics();
+    
+    res.json({
+      timestamp: new Date().toISOString(),
+      diagnostics,
+      logs: {
+        info: 'Comprehensive diagnostics for troubleshooting integration issues',
+        troubleshooting: {
+          tmdbNotWorking: [
+            'Check TMDB_API_KEY environment variable',
+            'Verify API key is valid at https://developers.themoviedb.org/',
+            'Check network connectivity',
+            'Review logs for specific error messages',
+          ],
+          noExtensionsDetected: [
+            'Ensure other Stremio extensions are running',
+            'Check if extensions are running on standard ports',
+            'Add extension URLs to STREMIO_KNOWN_EXTENSIONS',
+            'Verify extensions have valid manifest.json endpoints',
+          ],
+          conflictsDetected: [
+            'Review detected conflicts in the conflicts array',
+            'Consider disabling duplicate functionality',
+            'Adjust extension priorities if available',
+            'Check logs for specific conflict details',
+          ],
+        },
+      },
+    });
+  } catch (error) {
+    logger.error({ error }, 'Failed to get integration diagnostics');
+    res.status(500).json({ error: 'Failed to retrieve integration diagnostics' });
+  }
+});
+
+// Clear integration-specific cache
+router.post('/integrations/cache/clear', async (req: Request, res: Response) => {
+  try {
+    logger.info({
+      ip: req.ip,
+      userAgent: req.get('User-Agent'),
+    }, 'Integration cache clear requested');
+    
+    await integrationService.clearIntegrationCache();
+    
+    res.json({
+      timestamp: new Date().toISOString(),
+      message: 'Integration cache cleared successfully',
+      note: 'TMDB metadata and extension cross-references have been cleared',
+    });
+  } catch (error) {
+    logger.error({ error }, 'Failed to clear integration cache');
+    res.status(500).json({ error: 'Failed to clear integration cache' });
   }
 });
 
