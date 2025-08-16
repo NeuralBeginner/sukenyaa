@@ -18,6 +18,7 @@ class AddonService {
   private nyaaScraper: NyaaScraper;
   private sukebeiScraper: NyaaScraper;
   private builder: any;
+  private torrentCache: Map<string, TorrentItem> = new Map(); // Cache for torrent data
 
   constructor() {
     this.nyaaScraper = new NyaaScraper(config.externalServices.nyaaBaseUrl);
@@ -279,9 +280,31 @@ class AddonService {
     });
   }
 
+  private cacheTorrentData(id: string, torrent: TorrentItem): void {
+    this.torrentCache.set(id, torrent);
+    
+    // Limit cache size to prevent memory issues
+    if (this.torrentCache.size > 1000) {
+      const firstKey = this.torrentCache.keys().next().value;
+      if (firstKey) {
+        this.torrentCache.delete(firstKey);
+      }
+    }
+  }
+
+  private getCachedTorrentData(id: string): TorrentItem | null {
+    return this.torrentCache.get(id) || null;
+  }
+
   private torrentToMeta(torrent: TorrentItem): MetaInfo {
+    // Use the actual torrent ID instead of encoded title
+    const id = `nyaa:${torrent.id}`;
+    
+    // Cache the full torrent data for meta/stream requests
+    this.cacheTorrentData(torrent.id, torrent);
+    
     return {
-      id: `nyaa:${encodeURIComponent(torrent.title)}`,
+      id,
       type: this.getContentType(torrent.category),
       name: torrent.title,
       poster: this.generatePosterUrl(torrent),
@@ -314,21 +337,107 @@ class AddonService {
   }
 
   private generatePosterUrl(torrent: TorrentItem): string {
-    // Generate Android-compatible poster URLs
-    // Use a reliable data URL that always works on mobile devices
+    // Generate high-quality poster URLs for mobile compatibility
     const type = this.getContentType(torrent.category);
+    const title = torrent.title;
     
-    // Create different placeholder images based on content type
+    // Try to extract series/movie name for poster lookup
+    const cleanTitle = this.extractCleanTitle(title);
+    
+    // For now, use improved placeholders that are more visually appealing
+    // These will work reliably on all devices including Android
     if (type === 'anime') {
-      // Anime placeholder - blue color scheme
-      return 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjQ1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMmY1NWE4Ii8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIyNCIgZmlsbD0id2hpdGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj7wn4+5IEFuaW1lPC90ZXh0Pgo8L3N2Zz4=';
+      // Anime placeholder - modern blue gradient design
+      return this.generateModernPlaceholder(cleanTitle, '#2196F3', '#1976D2', '🎭');
     } else if (type === 'movie') {
-      // Movie placeholder - red color scheme
-      return 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjQ1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGM0NDQ0Ii8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIyNCIgZmlsbD0id2hpdGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj7wn46sIE1vdmllPC90ZXh0Pgo8L3N2Zz4=';
+      // Movie placeholder - modern red gradient design  
+      return this.generateModernPlaceholder(cleanTitle, '#F44336', '#D32F2F', '🎬');
     } else {
-      // Other content placeholder - green color scheme
-      return 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjQ1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjNWNiODVjIi8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIyNCIgZmlsbD0id2hpdGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj7wn5OhIE90aGVyPC90ZXh0Pgo8L3N2Zz4=';
+      // Other content placeholder - modern green gradient design
+      return this.generateModernPlaceholder(cleanTitle, '#4CAF50', '#388E3C', '📦');
     }
+  }
+
+  private extractCleanTitle(title: string): string {
+    // Extract clean title for display (remove brackets, quality info, etc.)
+    let cleanTitle = title;
+    
+    // Remove common patterns
+    cleanTitle = cleanTitle.replace(/\[.*?\]/g, ''); // Remove [brackets]
+    cleanTitle = cleanTitle.replace(/\(.*?\)/g, ''); // Remove (parentheses)
+    cleanTitle = cleanTitle.replace(/\b(1080p|720p|480p|4K|BD|WEB|DVDRip|BDRip)\b/gi, '');
+    cleanTitle = cleanTitle.replace(/\b(x264|x265|H264|H265|HEVC|AVC)\b/gi, '');
+    cleanTitle = cleanTitle.replace(/\b(AAC|AC3|DTS|FLAC|MP3)\b/gi, '');
+    cleanTitle = cleanTitle.replace(/\s+/g, ' ').trim();
+    
+    // Limit length for display
+    if (cleanTitle.length > 30) {
+      cleanTitle = cleanTitle.substring(0, 30) + '...';
+    }
+    
+    return cleanTitle || 'Unknown Title';
+  }
+
+  private generateModernPlaceholder(title: string, primaryColor: string, secondaryColor: string, icon: string): string {
+    // Create a modern, gradient-based placeholder that looks professional
+    const width = 300;
+    const height = 450;
+    
+    // Encode title for SVG
+    const encodedTitle = title.replace(/[<>&"']/g, (char) => {
+      const map: Record<string, string> = {
+        '<': '&lt;',
+        '>': '&gt;',
+        '&': '&amp;',
+        '"': '&quot;',
+        "'": '&#39;'
+      };
+      return map[char] || char;
+    });
+    
+    const svg = `
+    <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:${primaryColor};stop-opacity:1" />
+          <stop offset="100%" style="stop-color:${secondaryColor};stop-opacity:1" />
+        </linearGradient>
+        <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="rgba(0,0,0,0.3)"/>
+        </filter>
+      </defs>
+      
+      <!-- Background gradient -->
+      <rect width="100%" height="100%" fill="url(#grad)" rx="12" ry="12"/>
+      
+      <!-- Overlay pattern for texture -->
+      <rect width="100%" height="100%" fill="rgba(255,255,255,0.05)" rx="12" ry="12" 
+            style="opacity: 0.7; background-image: repeating-linear-gradient(45deg, transparent, transparent 2px, rgba(255,255,255,.1) 2px, rgba(255,255,255,.1) 4px);"/>
+      
+      <!-- Icon -->
+      <text x="50%" y="35%" font-family="Arial, sans-serif" font-size="48" 
+            fill="rgba(255,255,255,0.9)" text-anchor="middle" dy=".3em" filter="url(#shadow)">${icon}</text>
+      
+      <!-- Title -->
+      <text x="50%" y="65%" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" 
+            font-size="18" font-weight="600" fill="white" text-anchor="middle" dy=".3em" filter="url(#shadow)">
+        <tspan x="50%" dy="0">${encodedTitle.length > 20 ? encodedTitle.substring(0, 20) : encodedTitle}</tspan>
+        ${encodedTitle.length > 20 ? `<tspan x="50%" dy="1.2em">${encodedTitle.substring(20, 40)}</tspan>` : ''}
+      </text>
+      
+      <!-- Quality indicator if available -->
+      <rect x="10" y="10" width="60" height="24" fill="rgba(0,0,0,0.7)" rx="12" ry="12"/>
+      <text x="40" y="22" font-family="Arial, sans-serif" font-size="12" font-weight="bold" 
+            fill="white" text-anchor="middle" dy=".3em">HD</text>
+      
+      <!-- Bottom bar for branding -->
+      <rect x="0" y="${height - 30}" width="100%" height="30" fill="rgba(0,0,0,0.3)" rx="0 0 12 12"/>
+      <text x="50%" y="${height - 15}" font-family="Arial, sans-serif" font-size="11" 
+            fill="rgba(255,255,255,0.8)" text-anchor="middle" dy=".3em">SukeNyaa</text>
+    </svg>`;
+    
+    // Return as data URL
+    return `data:image/svg+xml;base64,${Buffer.from(svg.trim()).toString('base64')}`;
   }
 
   private generateDescription(torrent: TorrentItem): string {
@@ -749,41 +858,60 @@ class AddonService {
 
       metricsService.recordCacheMiss();
 
-      // Extract nyaa ID from the args.id (format: nyaa:12345)
-      const nyaaId = args.id.replace('nyaa:', '');
-      const filters: SearchFilters = {
-        query: nyaaId
-      };
+      // Extract torrent ID from args.id (format: nyaa:torrentId)
+      const torrentId = args.id.replace('nyaa:', '');
+      
+      // First try to get from torrent cache
+      let torrent = this.getCachedTorrentData(torrentId);
+      
+      if (!torrent) {
+        // If not in cache, try to search for it
+        // Use the torrent ID to search, or fall back to partial search
+        const filters: SearchFilters = {};
+        
+        // Set category based on type
+        if (args.type === 'anime') {
+          filters.category = '1_0'; // Anime category
+        } else if (args.type === 'movie') {
+          filters.category = '4_0'; // Live Action category
+        }
 
-      // Set category based on type
-      if (args.type === 'anime') {
-        filters.category = '1_0'; // Anime category
-      } else if (args.type === 'movie') {
-        filters.category = '4_0'; // Live Action category
+        const options = {
+          page: 1,
+          limit: 20, // Get more results to find the right one
+          sort: 'date' as const,
+          order: 'desc' as const,
+        };
+
+        const searchResult = await this.nyaaScraper.search(filters, options);
+        
+        // Try to find the specific torrent by ID
+        const foundTorrent = searchResult.items.find(item => item.id === torrentId);
+        torrent = foundTorrent || null;
+        
+        if (!torrent && searchResult.items.length > 0) {
+          // Fallback to first result if exact match not found
+          torrent = searchResult.items[0]!;
+          logger.warn({ 
+            args, 
+            requestedId: torrentId, 
+            foundId: torrent.id 
+          }, 'Exact torrent not found, using fallback');
+        }
       }
 
-      const options = {
-        page: 1,
-        limit: 5,
-        sort: 'date' as const,
-        order: 'desc' as const,
-      };
-
-      const searchResult = await this.nyaaScraper.search(filters, options);
-
-      if (searchResult.items.length === 0) {
+      if (!torrent) {
         throw new Error('Content not found');
       }
 
-      const item = searchResult.items[0]!;
-      const meta = this.torrentToMeta(item);
+      const meta = this.torrentToMeta(torrent);
 
       const result = { meta };
       await cacheService.set(cacheKey, result, 3600); // Cache for 1 hour
 
       logger.info({
         args,
-        title: item.title,
+        title: torrent.title,
         responseTime: Date.now() - startTime,
       }, 'Meta request completed');
 
@@ -809,28 +937,45 @@ class AddonService {
 
       metricsService.recordCacheMiss();
 
-      // Extract nyaa ID from the args.id (format: nyaa:12345)
-      const nyaaId = args.id.replace('nyaa:', '');
-      const filters: SearchFilters = {
-        query: nyaaId
-      };
+      // Extract torrent ID from args.id (format: nyaa:torrentId)
+      const torrentId = args.id.replace('nyaa:', '');
+      
+      // First try to get from torrent cache
+      let torrent = this.getCachedTorrentData(torrentId);
+      let streams: StreamInfo[] = [];
+      
+      if (torrent) {
+        // If we have the exact torrent, create stream for it
+        streams = [this.torrentToStream(torrent)];
+      } else {
+        // If not in cache, search for similar content
+        const filters: SearchFilters = {};
+        
+        // Set category based on type
+        if (args.type === 'anime') {
+          filters.category = '1_0'; // Anime category
+        } else if (args.type === 'movie') {
+          filters.category = '4_0'; // Live Action category
+        }
 
-      // Set category based on type
-      if (args.type === 'anime') {
-        filters.category = '1_0'; // Anime category
-      } else if (args.type === 'movie') {
-        filters.category = '4_0'; // Live Action category
+        const options = {
+          page: 1,
+          limit: 10,
+          sort: 'seeders' as const,
+          order: 'desc' as const,
+        };
+
+        const searchResult = await this.nyaaScraper.search(filters, options);
+        
+        // Try to find the specific torrent by ID, or use all results
+        const specificTorrent = searchResult.items.find(item => item.id === torrentId);
+        if (specificTorrent) {
+          streams = [this.torrentToStream(specificTorrent)];
+        } else {
+          // Fallback: return all results as potential streams
+          streams = searchResult.items.map((item) => this.torrentToStream(item));
+        }
       }
-
-      const options = {
-        page: 1,
-        limit: 10,
-        sort: 'seeders' as const,
-        order: 'desc' as const,
-      };
-
-      const searchResult = await this.nyaaScraper.search(filters, options);
-      const streams = searchResult.items.map((item) => this.torrentToStream(item));
 
       const result = { streams };
       await cacheService.set(cacheKey, result, 1800); // Cache for 30 minutes
