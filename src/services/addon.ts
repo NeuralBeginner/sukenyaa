@@ -295,20 +295,13 @@ class AddonService {
   }
 
   private generatePosterUrl(torrent: TorrentItem): string {
-    // Generate a better placeholder poster based on the content type
+    // Use nyaa.si's default avatar as a reliable poster that works on Android
+    // This ensures posters always load and display properly in Stremio mobile
     const type = this.getContentType(torrent.category);
     
-    // Use different colors and styling for different content types
-    const configs = {
-      anime: { bg: '2c3e50', fg: 'e74c3c', emoji: '🎌' },
-      movie: { bg: '34495e', fg: 'f39c12', emoji: '🎬' },
-      other: { bg: '1a1a1a', fg: 'ffffff', emoji: '📁' }
-    };
-    
-    const config = configs[type as keyof typeof configs] || configs.other;
-    const title = encodeURIComponent(`${config.emoji} ${type.toUpperCase()}`);
-    
-    return `https://via.placeholder.com/300x450/${config.bg}/${config.fg}?text=${title}`;
+    // Return nyaa's default image - reliable and accessible from mobile devices
+    // Alternative: could implement a data URL with base64 encoded placeholder image
+    return 'https://nyaa.si/static/img/avatar/default.png';
   }
 
   private generateDescription(torrent: TorrentItem): string {
@@ -496,6 +489,14 @@ class AddonService {
   async getCatalog(args: AddonArgs): Promise<{ metas: MetaInfo[] }> {
     const startTime = Date.now();
 
+    // Log all catalog requests for debugging Android issues
+    logger.info({ 
+      args,
+      userAgent: 'unknown', // Will be added from server middleware 
+      timestamp: new Date().toISOString(),
+      requestId: Math.random().toString(36).substr(2, 9)
+    }, 'Catalog request received');
+
     // Get user configuration first for cacheKey
     const userConfig = await configurationService.getUserConfiguration();
     
@@ -662,16 +663,33 @@ class AddonService {
           name: error.name
         } : error, 
         args,
-        responseTime: Date.now() - startTime
-      }, 'Catalog request failed');
+        responseTime: Date.now() - startTime,
+        isAndroidRequest: 'unknown', // Will be set from server middleware
+        troubleshooting: {
+          checkNetworkConnectivity: 'Verify nyaa.si is accessible',
+          checkStremioVersion: 'Ensure latest Stremio Android app',
+          checkConfiguration: 'Try resetting addon configuration',
+          checkLogs: 'Enable detailed logging for more info'
+        }
+      }, 'Catalog request failed - Android troubleshooting info included');
       
-      // Return empty result instead of throwing to provide better UX
-      const emptyResult = { metas: [] };
+      // Return a helpful error meta instead of empty for better debugging
+      const errorMeta = {
+        id: 'sukenyaa:error',
+        type: args.type,
+        name: '❌ Request Failed',
+        poster: 'https://nyaa.si/static/img/avatar/default.png',
+        description: `Error loading catalog: ${error instanceof Error ? error.message : 'Unknown error'}. Please check your network connection and try again.`,
+        year: new Date().getFullYear().toString(),
+        genres: ['Error'],
+      };
       
-      // Cache empty result briefly to avoid repeated failed requests
-      await cacheService.set(cacheKey, emptyResult, 60); // Cache for 1 minute
+      const errorResult = { metas: [errorMeta] };
       
-      return emptyResult;
+      // Cache error result briefly to avoid repeated failed requests
+      await cacheService.set(cacheKey, errorResult, 60); // Cache for 1 minute
+      
+      return errorResult;
     }
   }
 
