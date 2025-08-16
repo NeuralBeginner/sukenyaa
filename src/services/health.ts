@@ -147,7 +147,7 @@ class HealthService {
       const scraperStart = Date.now();
       await this.nyaaScraper.checkHealth();
       scraperResponseTime = Date.now() - scraperStart;
-    } catch (error) {
+    } catch {
       scraperResponseTime = -1; // Indicates failure
     }
     

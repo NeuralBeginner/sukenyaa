@@ -297,7 +297,7 @@ class AddonService {
   private generatePosterUrl(torrent: TorrentItem): string {
     // Use nyaa.si's default avatar as a reliable poster that works on Android
     // This ensures posters always load and display properly in Stremio mobile
-    const type = this.getContentType(torrent.category);
+    this.getContentType(torrent.category); // Get type for internal consistency
     
     // Return nyaa's default image - reliable and accessible from mobile devices
     // Alternative: could implement a data URL with base64 encoded placeholder image
@@ -346,7 +346,7 @@ class AddonService {
     // Try to extract year from common anime title patterns
     
     // Pattern: [Year] Title or (Year) Title  
-    const bracketMatch = title.match(/[\[\(](20[0-2]\d)[\]\)]/);
+    const bracketMatch = title.match(/[[(](20[0-2]\d)[\])]/);
     if (bracketMatch) return bracketMatch[1];
     
     // Pattern: Title Year or Title (Year)

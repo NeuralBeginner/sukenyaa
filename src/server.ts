@@ -130,7 +130,7 @@ class Server {
     this.app.get('/welcome', async (req, res) => {
       try {
         const envSummary = await environmentService.getEnvironmentSummary();
-        const setupStatus = await autoSetupService.getSetupStatus();
+        await autoSetupService.getSetupStatus(); // Used for side effects
         const port = config.server.port;
 
         const html = `
@@ -1081,7 +1081,8 @@ class Server {
 
   private setupErrorHandling(): void {
     // Global error handler
-    this.app.use((error: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    this.app.use((error: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
       logger.error({
         error: error.message,
         stack: error.stack,
