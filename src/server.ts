@@ -11,6 +11,8 @@ import { healthService } from './services/health';
 import { cacheService } from './services/cache';
 import { addonService } from './services/addon';
 import { configurationService } from './services/config';
+import { autoSetupService } from './services/autoSetup';
+import { environmentService } from './services/environment';
 import apiRoutes from './routes/api';
 
 class Server {
@@ -81,6 +83,192 @@ class Server {
 
     // API routes
     this.app.use('/api', apiRoutes);
+
+    // Auto-setup and environment routes for zero-configuration experience
+    this.app.get('/api/auto-setup/status', async (req, res) => {
+      try {
+        const status = await autoSetupService.getSetupStatus();
+        res.json(status);
+      } catch (error) {
+        logger.error({ error }, 'Failed to get auto-setup status');
+        res.status(500).json({ error: 'Failed to get setup status' });
+      }
+    });
+
+    this.app.post('/api/auto-setup/run', async (req, res) => {
+      try {
+        const result = await autoSetupService.performAutoSetup();
+        res.json(result);
+      } catch (error) {
+        logger.error({ error }, 'Failed to run auto-setup');
+        res.status(500).json({ error: 'Failed to run auto-setup' });
+      }
+    });
+
+    this.app.post('/api/auto-setup/reset', async (req, res) => {
+      try {
+        const result = await autoSetupService.resetAndRerun();
+        res.json(result);
+      } catch (error) {
+        logger.error({ error }, 'Failed to reset and run auto-setup');
+        res.status(500).json({ error: 'Failed to reset auto-setup' });
+      }
+    });
+
+    this.app.get('/api/environment', async (req, res) => {
+      try {
+        const environment = await environmentService.detectEnvironment();
+        const summary = await environmentService.getEnvironmentSummary();
+        res.json({ environment, summary });
+      } catch (error) {
+        logger.error({ error }, 'Failed to get environment info');
+        res.status(500).json({ error: 'Failed to get environment info' });
+      }
+    });
+
+    // Zero-configuration welcome page
+    this.app.get('/welcome', async (req, res) => {
+      try {
+        const envSummary = await environmentService.getEnvironmentSummary();
+        await autoSetupService.getSetupStatus(); // Used for side effects
+        const port = config.server.port;
+
+        const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎬 SukeNyaa - Zero Configuration Ready!</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0; padding: 20px; background: linear-gradient(135deg, #1a1a1a, #2d2d2d); 
+            color: #ffffff; line-height: 1.6; min-height: 100vh;
+        }
+        .container { max-width: 900px; margin: 0 auto; }
+        .header { text-align: center; margin-bottom: 40px; }
+        .header h1 { color: #4CAF50; font-size: 2.5em; margin-bottom: 10px; }
+        .header p { color: #cccccc; font-size: 1.2em; }
+        .card { 
+            background: rgba(42, 42, 42, 0.8); padding: 30px; margin: 20px 0; 
+            border-radius: 12px; border-left: 4px solid #4CAF50; backdrop-filter: blur(10px);
+        }
+        .card h3 { color: #4CAF50; margin-top: 0; font-size: 1.4em; }
+        .install-section { background: rgba(76, 175, 80, 0.1); border-left-color: #4CAF50; }
+        .url-box { 
+            background: #333; padding: 15px; border-radius: 8px; 
+            font-family: 'Courier New', monospace; font-size: 1.1em; 
+            border: 2px solid #4CAF50; margin: 15px 0; text-align: center;
+        }
+        .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+        .status-item { background: rgba(255,255,255,0.05); padding: 20px; border-radius: 8px; }
+        .status-item h4 { color: #4CAF50; margin: 0 0 10px 0; }
+        .status-item p { margin: 5px 0; }
+        .checkmark { color: #4CAF50; font-weight: bold; }
+        .steps { counter-reset: step; }
+        .steps li { 
+            counter-increment: step; margin: 15px 0; padding-left: 40px; position: relative;
+        }
+        .steps li::before {
+            content: counter(step); position: absolute; left: 0; top: 0;
+            background: #4CAF50; color: white; width: 25px; height: 25px;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            font-weight: bold; font-size: 14px;
+        }
+        .links { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
+        .link-card { 
+            background: rgba(255,255,255,0.05); padding: 20px; border-radius: 8px; 
+            text-decoration: none; color: inherit; transition: transform 0.2s;
+        }
+        .link-card:hover { transform: translateY(-2px); background: rgba(255,255,255,0.1); }
+        .link-card h4 { color: #4CAF50; margin: 0 0 10px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎬 SukeNyaa</h1>
+            <p>Zero-Configuration Stremio Addon - Ready to Use!</p>
+        </div>
+
+        <div class="card install-section">
+            <h3>📱 Install in Stremio (No Configuration Required!)</h3>
+            <ol class="steps">
+                <li>Open <strong>Stremio</strong> on your device</li>
+                <li>Go to <strong>Add-ons</strong> → <strong>Community Add-ons</strong></li>
+                <li>Copy and paste this URL:</li>
+            </ol>
+            <div class="url-box">http://localhost:${port}/manifest.json</div>
+            <ol class="steps" start="4">
+                <li>Click <strong>Install</strong></li>
+                <li>Enjoy! Everything is pre-configured for optimal experience</li>
+            </ol>
+        </div>
+
+        <div class="card">
+            <h3>✅ Your System Status</h3>
+            <div class="status-grid">
+                <div class="status-item">
+                    <h4>Platform</h4>
+                    <p>${envSummary.platform}</p>
+                </div>
+                <div class="status-item">
+                    <h4>Performance</h4>
+                    <p>${envSummary.memory}</p>
+                </div>
+                <div class="status-item">
+                    <h4>Network</h4>
+                    <p>${envSummary.network}</p>
+                </div>
+                <div class="status-item">
+                    <h4>Configuration</h4>
+                    <p>${envSummary.optimization}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>🎯 Pre-Configured Features</h3>
+            <p><span class="checkmark">✅</span> <strong>All sources enabled:</strong> Anime All, Trusted, Movies, Other</p>
+            <p><span class="checkmark">✅</span> <strong>Smart filtering:</strong> Quality, language, and content filters</p>
+            <p><span class="checkmark">✅</span> <strong>Optimal performance:</strong> Configured for your platform</p>
+            <p><span class="checkmark">✅</span> <strong>Safe defaults:</strong> NSFW filter and content protection</p>
+            <p><span class="checkmark">✅</span> <strong>Enhanced experience:</strong> Posters, synopsis, and metadata</p>
+        </div>
+
+        <div class="card">
+            <h3>🔗 Useful Links</h3>
+            <div class="links">
+                <a href="/test" class="link-card">
+                    <h4>🧪 Test Page</h4>
+                    <p>Test addon functionality</p>
+                </a>
+                <a href="/configure" class="link-card">
+                    <h4>⚙️ Configuration</h4>
+                    <p>Optional customization</p>
+                </a>
+                <a href="/api/health" class="link-card">
+                    <h4>💚 Health Check</h4>
+                    <p>Server status</p>
+                </a>
+                <a href="/api/auto-setup/status" class="link-card">
+                    <h4>🔧 Setup Status</h4>
+                    <p>Auto-setup information</p>
+                </a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>`;
+
+        res.send(html);
+      } catch (error) {
+        logger.error({ error }, 'Failed to generate welcome page');
+        res.status(500).json({ error: 'Failed to generate welcome page' });
+      }
+    });
 
     // Stremio addon routes - manually add manifest endpoint
     this.app.get('/manifest.json', (req, res) => {
@@ -893,7 +1081,8 @@ class Server {
 
   private setupErrorHandling(): void {
     // Global error handler
-    this.app.use((error: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    this.app.use((error: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
       logger.error({
         error: error.message,
         stack: error.stack,
@@ -925,16 +1114,37 @@ class Server {
   }
 
   public async start(): Promise<void> {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       try {
+        // Perform auto-setup for zero-configuration installation
+        logger.info('Starting zero-configuration setup...');
+        try {
+          const setupResult = await autoSetupService.performAutoSetup();
+          if (setupResult.success) {
+            logger.info('Zero-configuration setup completed successfully');
+            setupResult.actions.forEach(action => logger.info(action));
+            if (setupResult.warnings.length > 0) {
+              setupResult.warnings.forEach(warning => logger.warn(warning));
+            }
+          } else {
+            logger.warn('Zero-configuration setup completed with issues');
+            setupResult.errors.forEach(error => logger.error(error));
+          }
+        } catch (autoSetupError) {
+          logger.warn({ error: autoSetupError }, 'Auto-setup failed, continuing with default configuration');
+        }
+
         // Listen on localhost (127.0.0.1) for local connections only
-        this.server = this.app.listen(config.server.port, '127.0.0.1', () => {
+        this.server = this.app.listen(config.server.port, '127.0.0.1', async () => {
           logger.info({
             port: config.server.port,
             host: '127.0.0.1',
             nodeEnv: config.server.nodeEnv,
             pid: process.pid,
           }, 'Server started successfully on localhost');
+
+          // Display helpful information for users
+          await this.displayStartupInfo();
           resolve();
         });
 
@@ -947,6 +1157,45 @@ class Server {
         reject(error);
       }
     });
+  }
+
+  /**
+   * Display helpful startup information for zero-configuration experience
+   */
+  private async displayStartupInfo(): Promise<void> {
+    try {
+      const envSummary = await environmentService.getEnvironmentSummary();
+      const port = config.server.port;
+      
+      console.log('\n' + '='.repeat(80));
+      console.log('🎬 SukeNyaa Stremio Addon - Ready for Zero-Configuration Use!');
+      console.log('='.repeat(80));
+      console.log(`📱 Platform: ${envSummary.platform}`);
+      console.log(`💾 Memory: ${envSummary.memory}`);
+      console.log(`🌐 Network: ${envSummary.network}`);
+      console.log(`⚙️ Optimization: ${envSummary.optimization}`);
+      console.log('');
+      console.log('📱 INSTALL IN STREMIO:');
+      console.log(`   1. Open Stremio → Add-ons → Community Add-ons`);
+      console.log(`   2. Enter URL: http://localhost:${port}/manifest.json`);
+      console.log(`   3. Click Install - Everything is pre-configured!`);
+      console.log('');
+      console.log('🔧 USEFUL LINKS:');
+      console.log(`   • Test Page: http://localhost:${port}/test`);
+      console.log(`   • Configuration: http://localhost:${port}/configure`);
+      console.log(`   • Health Check: http://localhost:${port}/api/health`);
+      console.log(`   • Quick Start Guide: QUICK_START.md (auto-generated)`);
+      console.log('');
+      console.log('✅ All sources enabled: Anime All, Trusted, Movies, Other');
+      console.log('✅ Optimal filtering and quality settings applied');
+      console.log('✅ Performance optimized for your platform');
+      console.log('✅ No manual configuration required!');
+      console.log('');
+      console.log('Press Ctrl+C to stop the server');
+      console.log('='.repeat(80) + '\n');
+    } catch (error) {
+      logger.warn({ error }, 'Could not display startup info');
+    }
   }
 
   private async gracefulShutdown(signal: string): Promise<void> {

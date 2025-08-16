@@ -373,7 +373,7 @@ class AddonService {
     // Try to extract year from common anime title patterns
     
     // Pattern: [Year] Title or (Year) Title  
-    const bracketMatch = title.match(/[\[\(](20[0-2]\d)[\]\)]/);
+    const bracketMatch = title.match(/[[(](20[0-2]\d)[\])]/);
     if (bracketMatch) return bracketMatch[1];
     
     // Pattern: Title Year or Title (Year)

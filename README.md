@@ -11,8 +11,51 @@ SukeNyaa est un add-on non officiel pour Stremio qui agrège et organise le cont
 - 📊 **Monitoring** avec métriques de santé et endpoints de surveillance
 - 🐳 **Support Docker** pour un déploiement facile
 - 🛡️ **Sécurisé** avec protection rate limiting et validation des données
+- ⚡ **Configuration automatique** - Détection de plateforme et optimisation zero-config
+- 🎯 **Installation automatisée** - Scripts universels pour tous les environnements
+- 🔧 **Auto-résolution d'erreurs** - Détection et correction automatique des problèmes courants
+- 📚 **Documentation auto-générée** - Guides et aides créés automatiquement selon votre plateforme
 
 ## 🚀 Installation rapide
+
+### 🎯 Installation Zéro-Configuration (Recommandée)
+
+**SukeNyaa se configure automatiquement pour une expérience optimale sans aucune manipulation !**
+
+```bash
+# Installation universelle avec auto-configuration
+chmod +x install.sh
+./install.sh
+
+# Démarrage avec configuration automatique
+npm start
+```
+
+**C'est tout !** Tout est configuré automatiquement :
+- ✅ Détection automatique de votre plateforme (Desktop, Android/Termux, Docker)
+- ✅ Configuration optimale pour vos ressources système
+- ✅ Toutes les sources activées : Anime All, Trusted, Movies, Other
+- ✅ Filtres de qualité, langue et contenu optimisés
+- ✅ Performance ajustée pour votre appareil
+- ✅ Paramètres de sécurité et confidentialité par défaut
+
+### 📱 Installation Android/Termux Automatique
+
+```bash
+# Installation complètement automatisée pour Termux
+chmod +x start-android.sh
+./start-android.sh
+```
+
+Le script installe automatiquement :
+- Node.js et dépendances nécessaires
+- Configuration réseau et permissions
+- Paramètres optimisés pour mobile
+- Messages d'installation clairs et rassurants
+
+### Installation Manuelle (Optionnelle)
+
+Si vous préférez l'installation manuelle :
 
 ### Docker (Recommandé)
 
@@ -100,7 +143,35 @@ tests/
 
 ## 🔌 Installation dans Stremio
 
-### Installation Standard
+### Installation Automatique (Zéro Configuration)
+
+1. **Démarrez SukeNyaa** avec auto-configuration :
+   ```bash
+   ./install.sh  # Installation universelle
+   # OU
+   ./start-android.sh  # Pour Android/Termux
+   ```
+
+2. **Ouvrez Stremio** sur votre appareil
+
+3. **Allez dans Add-ons** > **Community Add-ons**
+
+4. **Collez l'URL** : `http://localhost:3000/manifest.json`
+
+5. **Cliquez sur Install**
+
+**🎉 C'est terminé !** Tout est pré-configuré pour une expérience optimale.
+
+### Pages Utiles (Auto-Générées)
+
+- **Page d'accueil** : `http://localhost:3000/welcome`
+- **Guide de démarrage** : `QUICK_START.md` (créé automatiquement)
+- **URLs d'installation** : `STREMIO_INSTALL.md` (créé automatiquement)
+- **Dépannage** : `TROUBLESHOOTING_[PLATFORM].md` (créé automatiquement)
+
+### Installation Standard (Manuelle)
+
+Si vous préférez configurer manuellement :
 
 1. Démarrez le serveur SukeNyaa
 2. Ouvrez Stremio

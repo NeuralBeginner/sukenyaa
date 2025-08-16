@@ -22,19 +22,23 @@ export interface UserConfiguration {
 }
 
 export const DEFAULT_CONFIG: UserConfiguration = {
+  // Content filters - secure and family-friendly by default
   enableNsfwFilter: true,
-  trustedUploadersOnly: false,
+  trustedUploadersOnly: false, // Allow all, but prioritize trusted
   blockedCategories: ['1_3'], // Sukebei real/Junior Idol category
   
+  // Search preferences - optimized for best user experience
   defaultSort: 'date',
   defaultOrder: 'desc',
-  maxResults: 50,
+  maxResults: 50, // Good balance between content and performance
   
-  preferredQuality: ['1080p', '720p', '480p'],
-  preferredLanguages: ['English', 'Japanese'],
+  // Quality preferences - cover all common use cases
+  preferredQuality: ['1080p', '720p', '480p', '4K'], // Most to least common
+  preferredLanguages: ['English', 'Japanese', 'Chinese', 'Korean'], // Popular languages
   
-  enableDetailedLogging: false,
-  cacheTimeout: 300,
+  // Advanced options - balanced for zero-configuration
+  enableDetailedLogging: false, // Reduce log noise by default
+  cacheTimeout: 300, // 5 minutes - good balance between freshness and performance
 };
 
 class ConfigurationService {
