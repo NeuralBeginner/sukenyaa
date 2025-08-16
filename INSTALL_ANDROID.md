@@ -334,6 +334,51 @@ echo 'cd ~/sukenyaa && npm start' >> ~/.bashrc
 3. **Économisez la batterie** : Fermez l'addon quand vous ne l'utilisez pas
 4. **Mises à jour** : Exécutez `git pull && npm install && npm run build` pour mettre à jour
 
+## 🔧 Résolution de problèmes
+
+Si vous rencontrez des problèmes, consultez le **[Guide de dépannage Android](ANDROID_TROUBLESHOOTING.md)** pour des solutions détaillées.
+
+### Problèmes courants et solutions rapides :
+
+**❌ "Add-on couldn't be detected"**
+```bash
+# Vérifiez que le serveur fonctionne
+curl http://localhost:3000/manifest.json
+```
+
+**❌ Catalogue vide ou chargement infini**
+```bash
+# Test de diagnostic
+curl http://localhost:3000/api/android-diagnostic
+```
+
+**❌ Performance lente**
+```bash
+# Réduire le nombre de résultats
+curl -X POST http://localhost:3000/configure/api \
+  -H "Content-Type: application/json" \
+  -d '{"maxResults": 25}'
+```
+
+**❌ Pas de streams/magnets**
+- Installez une app torrent (µTorrent, Flud, etc.)
+- Définissez-la comme app par défaut pour les liens magnet
+
+### Commandes de diagnostic utiles :
+```bash
+# État de santé mobile
+curl http://localhost:3000/api/mobile-health
+
+# Test réseau
+curl http://localhost:3000/api/network-test
+
+# Configuration actuelle
+curl http://localhost:3000/configure/api
+
+# Page de test dans le navigateur
+http://localhost:3000/test
+```
+
 ## 🆘 Support
 
 Si vous rencontrez des problèmes :
