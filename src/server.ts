@@ -13,6 +13,7 @@ import { addonService } from './services/addon';
 import { configurationService } from './services/config';
 import { autoSetupService } from './services/autoSetup';
 import { environmentService } from './services/environment';
+import { serverActivityMonitor } from './services/serverActivityMonitor';
 import apiRoutes from './routes/api';
 
 class Server {
@@ -63,8 +64,11 @@ class Server {
       this.app.use(metricsService.middleware());
     }
 
-    // Request logging middleware
+    // Request logging and activity tracking middleware
     this.app.use((req, res, next) => {
+      // Record server activity for Android/Termux monitoring
+      serverActivityMonitor.recordActivity('request');
+      
       logger.info({
         method: req.method,
         url: req.url,
