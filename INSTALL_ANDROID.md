@@ -66,6 +66,8 @@ Le serveur démarrera sur `http://localhost:3000`
 
 ## 🧪 Validation de l'installation
 
+## 🧪 Validation de l'installation
+
 ### Test via navigateur
 
 Pendant que le serveur fonctionne, ouvrez votre navigateur Android et allez sur :
@@ -82,8 +84,26 @@ curl http://localhost:3000/
 curl http://localhost:3000/manifest.json
 
 # Tester un catalogue
-curl "http://localhost:3000/test/catalog/anime/nyaa-anime-all.json"
+curl "http://localhost:3000/catalog/anime/nyaa-anime-all.json"
+
+# Tester la recherche
+curl "http://localhost:3000/catalog/anime/nyaa-anime-all.json?search=Attack+on+Titan"
 ```
+
+### Scripts de test intégrés
+
+```bash
+# Test rapide du scraper
+npm run test:scraper
+
+# Debug détaillé de la connectivité
+npm run debug:scraper
+
+# Tests unitaires complets
+npm test
+```
+
+## 🔧 Résolution de problèmes
 
 ## 🔧 Résolution de problèmes
 
@@ -114,7 +134,52 @@ netstat -rn
 
 # Tester la connectivité locale
 ping 127.0.0.1
+
+# Tester la connectivité à nyaa.si
+curl -I https://nyaa.si/
 ```
+
+### Le catalogue est vide ou ne charge pas
+
+```bash
+# Test direct du scraper
+npm run test:scraper
+
+# Vérifier les logs de requête
+curl "http://localhost:3000/catalog/anime/nyaa-anime-all.json"
+# Vérifier les logs dans la console Termux
+
+# Test avec recherche spécifique
+curl "http://localhost:3000/catalog/anime/nyaa-anime-all.json?search=Naruto"
+```
+
+### Erreurs de parsing ou contenu manquant
+
+```bash
+# Debug détaillé du scraper
+npm run debug:scraper
+
+# Vérifier la structure HTML retournée
+curl -s "https://nyaa.si/?c=1_0" | head -n 100
+
+# Test des filtres de contenu
+curl "http://localhost:3000/catalog/anime/nyaa-anime-trusted.json"
+```
+
+### Performance lente
+
+```bash
+# Vérifier le cache
+curl "http://localhost:3000/api/metrics"
+
+# Vérifier les métriques de santé
+curl "http://localhost:3000/api/health"
+
+# Test de ping réseau
+time curl -s "http://localhost:3000/manifest.json" > /dev/null
+```
+
+## 📊 Surveillance
 
 ## 📊 Surveillance
 
@@ -126,6 +191,27 @@ Le serveur affiche les logs en temps réel. Pour voir l'activité :
 # Dans Termux, les logs s'affichent automatiquement
 # Rechercher les requêtes Stremio dans les logs
 ```
+
+### Analyse des logs
+
+**Logs normaux :**
+```json
+{"level":30,"time":...,"msg":"Processing catalog request","args":{"type":"anime","id":"nyaa-anime-all"}}
+{"level":30,"time":...,"msg":"Search completed, converting to metas","searchResultCount":50}
+{"level":30,"time":...,"msg":"Catalog request completed successfully","itemCount":50}
+```
+
+**Logs d'erreur à surveiller :**
+```json
+{"level":50,"time":...,"msg":"Catalog request failed","error":"..."}
+{"level":40,"time":...,"msg":"Blocked torrent due to prohibited keywords"}
+{"level":40,"time":...,"msg":"Failed to parse torrent row"}
+```
+
+**Indicateurs de performance :**
+- `responseTime` : doit être < 2000ms
+- `searchResultCount` : doit être > 0 pour un catalogue fonctionnel
+- `metasGenerated` : doit correspondre à `searchResultCount`
 
 ### Endpoints de monitoring
 

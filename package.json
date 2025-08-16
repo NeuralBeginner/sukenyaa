@@ -16,7 +16,9 @@
     "format:check": "prettier --check src/**/*.ts",
     "prestart": "npm run build",
     "docker:build": "docker build -t sukenyaa .",
-    "docker:run": "docker run -p 3000:3000 sukenyaa"
+    "docker:run": "docker run -p 3000:3000 sukenyaa",
+    "test:scraper": "npx ts-node scripts/test-scraper.ts",
+    "debug:scraper": "npx ts-node scripts/debug-nyaa.ts"
   },
   "keywords": [
     "stremio",
