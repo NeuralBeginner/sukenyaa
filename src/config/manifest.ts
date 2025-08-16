@@ -42,6 +42,21 @@ export const manifest: any = {
           ],
         },
         {
+          name: 'quality',
+          isRequired: false,
+          options: ['4K', '1080p', '720p', '480p'],
+        },
+        {
+          name: 'language',
+          isRequired: false,
+          options: ['Japanese', 'English', 'Chinese', 'Korean'],
+        },
+        {
+          name: 'trusted',
+          isRequired: false,
+          options: ['true', 'false'],
+        },
+        {
           name: 'skip',
           isRequired: false,
         },
@@ -78,6 +93,16 @@ export const manifest: any = {
           ],
         },
         {
+          name: 'quality',
+          isRequired: false,
+          options: ['4K', '1080p', '720p', '480p'],
+        },
+        {
+          name: 'language',
+          isRequired: false,
+          options: ['Japanese', 'English', 'Chinese', 'Korean'],
+        },
+        {
           name: 'skip',
           isRequired: false,
         },
@@ -93,6 +118,21 @@ export const manifest: any = {
           isRequired: false,
         },
         {
+          name: 'quality',
+          isRequired: false,
+          options: ['4K', '1080p', '720p', '480p'],
+        },
+        {
+          name: 'language',
+          isRequired: false,
+          options: ['Japanese', 'English', 'Chinese', 'Korean'],
+        },
+        {
+          name: 'trusted',
+          isRequired: false,
+          options: ['true', 'false'],
+        },
+        {
           name: 'skip',
           isRequired: false,
         },
@@ -106,6 +146,21 @@ export const manifest: any = {
         {
           name: 'search',
           isRequired: false,
+        },
+        {
+          name: 'quality',
+          isRequired: false,
+          options: ['4K', '1080p', '720p', '480p'],
+        },
+        {
+          name: 'language',
+          isRequired: false,
+          options: ['Japanese', 'English', 'Chinese', 'Korean'],
+        },
+        {
+          name: 'trusted',
+          isRequired: false,
+          options: ['true', 'false'],
         },
         {
           name: 'skip',
