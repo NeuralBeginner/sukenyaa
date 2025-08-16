@@ -58,8 +58,27 @@ class AddonService {
           filters.query = args.extra.search;
         }
 
+        if (args.extra?.genre) {
+          // Map genre to search query if needed
+          filters.query = filters.query ? `${filters.query} ${args.extra.genre}` : args.extra.genre;
+        }
+
+        if (args.extra?.quality) {
+          filters.quality = args.extra.quality;
+        }
+
+        if (args.extra?.language) {
+          filters.language = args.extra.language;
+        }
+
+        if (args.extra?.trusted) {
+          filters.trusted = args.extra.trusted === 'true';
+        }
+
         // Apply user configuration
-        filters.trusted = args.id.includes('trusted') || userConfig.trustedUploadersOnly;
+        if (!filters.trusted) { // Only apply user preference if not explicitly set
+          filters.trusted = args.id.includes('trusted') || userConfig.trustedUploadersOnly;
+        }
 
         // Map catalog type to nyaa category
         if (args.type === 'anime') {
@@ -295,13 +314,21 @@ class AddonService {
   }
 
   private generatePosterUrl(torrent: TorrentItem): string {
-    // Use nyaa.si's default avatar as a reliable poster that works on Android
-    // This ensures posters always load and display properly in Stremio mobile
-    this.getContentType(torrent.category); // Get type for internal consistency
+    // Generate Android-compatible poster URLs
+    // Use a reliable data URL that always works on mobile devices
+    const type = this.getContentType(torrent.category);
     
-    // Return nyaa's default image - reliable and accessible from mobile devices
-    // Alternative: could implement a data URL with base64 encoded placeholder image
-    return 'https://nyaa.si/static/img/avatar/default.png';
+    // Create different placeholder images based on content type
+    if (type === 'anime') {
+      // Anime placeholder - blue color scheme
+      return 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjQ1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMmY1NWE4Ii8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIyNCIgZmlsbD0id2hpdGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj7wn4+5IEFuaW1lPC90ZXh0Pgo8L3N2Zz4=';
+    } else if (type === 'movie') {
+      // Movie placeholder - red color scheme
+      return 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjQ1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGM0NDQ0Ii8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIyNCIgZmlsbD0id2hpdGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj7wn46sIE1vdmllPC90ZXh0Pgo8L3N2Zz4=';
+    } else {
+      // Other content placeholder - green color scheme
+      return 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjQ1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjNWNiODVjIi8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIyNCIgZmlsbD0id2hpdGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj7wn5OhIE90aGVyPC90ZXh0Pgo8L3N2Zz4=';
+    }
   }
 
   private generateDescription(torrent: TorrentItem): string {
@@ -528,8 +555,22 @@ class AddonService {
         filters.query = filters.query ? `${filters.query} ${args.extra.genre}` : args.extra.genre;
       }
 
+      if (args.extra?.quality) {
+        filters.quality = args.extra.quality;
+      }
+
+      if (args.extra?.language) {
+        filters.language = args.extra.language;
+      }
+
+      if (args.extra?.trusted) {
+        filters.trusted = args.extra.trusted === 'true';
+      }
+
       // Apply user configuration
-      filters.trusted = args.id.includes('trusted') || userConfig.trustedUploadersOnly;
+      if (!filters.trusted) { // Only apply user preference if not explicitly set
+        filters.trusted = args.id.includes('trusted') || userConfig.trustedUploadersOnly;
+      }
 
       // Set category based on catalog ID
       if (args.id === 'nyaa-anime-all' || args.id === 'nyaa-anime-trusted') {
