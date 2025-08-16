@@ -15,6 +15,11 @@ SukeNyaa est un add-on non officiel pour Stremio qui agrège et organise le cont
 - 🎯 **Installation automatisée** - Scripts universels pour tous les environnements
 - 🔧 **Auto-résolution d'erreurs** - Détection et correction automatique des problèmes courants
 - 📚 **Documentation auto-générée** - Guides et aides créés automatiquement selon votre plateforme
+- 🎭 **Intégration TMDB automatique** - Métadonnées enrichies avec posters, synopsis et ratings
+- 🔗 **Compatibilité multi-extensions** - Détection et synchronisation automatique avec autres addons Stremio
+- 🧠 **Mise en cache intelligente** - Priorisation des métadonnées avec fallback intelligent
+- 🔄 **Cross-référencement** - Navigation croisée fluide entre extensions
+- 📈 **Diagnostics avancés** - Logs explicites pour résoudre les conflits d'extensions
 
 ## 🚀 Installation rapide
 
@@ -92,6 +97,104 @@ cp .env.example .env
 | `REDIS_URL` | URL Redis optionnelle | - |
 | `ENABLE_NSFW_FILTER` | Filtre de contenu NSFW | `true` |
 | `STRICT_MINOR_CONTENT_EXCLUSION` | Exclusion stricte contenu mineur | `true` |
+
+## 🎭 Intégrations Automatiques
+
+SukeNyaa offre une **compatibilité et symbiose automatique** avec les autres extensions Stremio, en particulier TMDB, pour une expérience transparente et enrichie.
+
+### 🎬 Intégration TMDB (The Movie Database)
+
+L'intégration TMDB enrichit automatiquement les métadonnées de vos contenus :
+
+- **Posters haute qualité** - Remplace les placeholders par de vraies affiches
+- **Synopsis détaillés** - Descriptions professionnelles des films/séries
+- **Ratings et popularité** - Notes IMDB et popularité TMDB
+- **Genres enrichis** - Classification précise des contenus
+- **Informations de casting** - Acteurs, réalisateurs et équipes
+
+#### Configuration TMDB
+
+1. **Obtenez une clé API** : [https://www.themoviedb.org/settings/api](https://www.themoviedb.org/settings/api)
+2. **Ajoutez à votre `.env`** :
+   ```bash
+   TMDB_API_KEY=votre_cle_api_ici
+   TMDB_ENABLED=true
+   ```
+3. **Redémarrez SukeNyaa** - L'intégration est automatique !
+
+### 🔗 Détection Multi-Extensions
+
+SukeNyaa détecte automatiquement les autres extensions Stremio pour :
+
+- **Cross-référencement** - Liens entre contenus d'extensions différentes
+- **Navigation fluide** - Passages transparents entre addons
+- **Synchronisation des métadonnées** - Partage d'informations entre extensions
+- **Résolution de conflits** - Détection et gestion des doublons
+
+#### Extensions Compatibles
+
+- ✅ **Extensions TMDB** - Synchronisation automatique des métadonnées
+- ✅ **Catalogues de films/séries** - Cross-référencement intelligent
+- ✅ **Addons de streaming** - Navigation croisée fluide
+- ✅ **Extensions de métadonnées** - Partage d'informations enrichies
+
+### 🧠 Cache Intelligent
+
+Le système de cache utilise une **priorisation des métadonnées** :
+
+1. **Données TMDB** (priorité maximale) - Informations officielles
+2. **Métadonnées d'extensions** - Données d'autres addons Stremio
+3. **Fallback SukeNyaa** - Génération automatique de placeholders
+
+### 📊 Diagnostics et Monitoring
+
+Surveillez vos intégrations avec des endpoints dédiés :
+
+```bash
+# Statut général des intégrations
+curl http://localhost:3000/api/integrations
+
+# Statut TMDB spécifique
+curl http://localhost:3000/api/integrations/tmdb/status
+
+# Extensions détectées
+curl http://localhost:3000/api/integrations/extensions
+
+# Diagnostics complets
+curl http://localhost:3000/api/integrations/diagnostics
+
+# Refresh manuel des extensions
+curl -X POST http://localhost:3000/api/integrations/extensions/scan
+```
+
+### 🔧 Configuration Avancée
+
+Variables d'environnement pour les intégrations :
+
+| Variable | Description | Défaut |
+|----------|-------------|---------|
+| `TMDB_API_KEY` | 🔑 Clé API TMDB (requis pour l'intégration) | - |
+| `TMDB_ENABLED` | Activer l'intégration TMDB | `true` |
+| `STREMIO_INTEGRATION_ENABLED` | Détection automatique d'extensions | `true` |
+| `STREMIO_CROSS_REFERENCE` | Cross-référencement entre extensions | `true` |
+| `STREMIO_KNOWN_EXTENSIONS` | URLs d'extensions connues (séparées par des virgules) | - |
+
+### 🚨 Résolution de Problèmes
+
+**TMDB ne fonctionne pas ?**
+- Vérifiez votre clé API TMDB
+- Consultez `http://localhost:3000/api/integrations/tmdb/status`
+- Vérifiez la connectivité réseau
+
+**Aucune extension détectée ?**
+- Vérifiez que d'autres addons Stremio sont actifs
+- Consultez `http://localhost:3000/api/integrations/extensions`
+- Ajoutez des URLs dans `STREMIO_KNOWN_EXTENSIONS`
+
+**Conflits d'extensions ?**
+- Consultez `http://localhost:3000/api/integrations/diagnostics`
+- Désactivez les fonctionnalités en doublon
+- Vérifiez les logs pour plus de détails
 
 ## 🔧 Développement
 

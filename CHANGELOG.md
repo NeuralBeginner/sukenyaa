@@ -8,6 +8,19 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Non publié]
 
 ### Ajouté
+- 🎭 **Intégration TMDB automatique** - Métadonnées enrichies avec posters, synopsis et ratings
+- 🔗 **Détection multi-extensions Stremio** - Compatibilité et symbiose automatique avec autres addons
+- 🧠 **Cache intelligent avec priorité** - Système de fallback hiérarchique des métadonnées
+- 🔄 **Cross-référencement automatique** - Navigation croisée fluide entre extensions
+- 📊 **Diagnostics avancés d'intégrations** - Endpoints de monitoring et résolution de conflits
+- 🔧 **Configuration plug & play** - Zéro configuration supplémentaire requise
+- 🎯 **Endpoints API d'intégration** :
+  - `/api/integrations` - Statut général des intégrations
+  - `/api/integrations/tmdb/status` - Statut TMDB détaillé
+  - `/api/integrations/extensions` - Extensions Stremio détectées
+  - `/api/integrations/diagnostics` - Diagnostics complets
+  - `/api/integrations/extensions/scan` - Refresh manuel des extensions
+- 📚 **Documentation d'intégration** - Guide complet pour TMDB et extensions
 - Intégration avec sukebei.nyaa.si pour contenus adultes (avec filtres appropriés)
 - Support pour les playlists et séries multi-épisodes
 - Configuration avancée des filtres de contenu

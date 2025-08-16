@@ -16,6 +16,20 @@ export interface UserConfiguration {
   preferredQuality: string[];
   preferredLanguages: string[];
   
+  // Enhanced metadata features
+  enablePosters: boolean;
+  enableSynopsis: boolean;
+  enableTags: boolean;
+  enableRatings: boolean;
+  enableSmartCaching: boolean;
+  enablePrefetching: boolean;
+  
+  // Catalog configuration
+  enabledCatalogs: string[];
+  enableQualityDetection: boolean;
+  enableLanguageDetection: boolean;
+  enableGenreDetection: boolean;
+  
   // Advanced options
   enableDetailedLogging: boolean;
   cacheTimeout: number;
@@ -35,6 +49,20 @@ export const DEFAULT_CONFIG: UserConfiguration = {
   // Quality preferences - cover all common use cases
   preferredQuality: ['1080p', '720p', '480p', '4K'], // Most to least common
   preferredLanguages: ['English', 'Japanese', 'Chinese', 'Korean'], // Popular languages
+  
+  // Enhanced metadata features - enable by default for better experience
+  enablePosters: true,
+  enableSynopsis: true,
+  enableTags: true,
+  enableRatings: true,
+  enableSmartCaching: true,
+  enablePrefetching: false, // Conservative default
+  
+  // Catalog configuration
+  enabledCatalogs: ['nyaa-anime-all', 'nyaa-anime-trusted', 'nyaa-live-action', 'nyaa-other'],
+  enableQualityDetection: true,
+  enableLanguageDetection: true,
+  enableGenreDetection: true,
   
   // Advanced options - balanced for zero-configuration
   enableDetailedLogging: false, // Reduce log noise by default
