@@ -976,6 +976,31 @@ class Server {
   public getApp(): express.Application {
     return this.app;
   }
+
+  public async stop(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (this.server) {
+        this.server.close(async (error: Error) => {
+          if (error) {
+            logger.error({ error }, 'Error stopping server');
+            reject(error);
+          } else {
+            try {
+              // Close external connections without exiting process
+              await cacheService.close();
+              logger.info('Server stopped successfully');
+              resolve();
+            } catch (closeError) {
+              logger.error({ error: closeError }, 'Error closing connections');
+              reject(closeError);
+            }
+          }
+        });
+      } else {
+        resolve();
+      }
+    });
+  }
 }
 
 export default Server;

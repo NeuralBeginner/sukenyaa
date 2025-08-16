@@ -59,18 +59,72 @@ export class NyaaScraper {
         },
       };
     } catch (error) {
-      logger.error({ error, filters, options }, 'Failed to search nyaa.si');
-      throw new Error(
-        `Failed to search nyaa.si: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
+      // Enhanced error logging with Android-specific troubleshooting
+      const errorContext = {
+        error: error instanceof Error ? {
+          message: error.message,
+          code: (error as any).code,
+          stack: error.stack
+        } : error,
+        filters,
+        options,
+        userAgent: 'nyaaScraper',
+        timestamp: new Date().toISOString(),
+        androidTroubleshooting: {
+          networkIssue: 'Check mobile data or WiFi connection',
+          dnsIssue: 'Try switching between mobile data and WiFi',
+          firewallIssue: 'Some networks may block nyaa.si access',
+          siteDown: 'nyaa.si may be temporarily unavailable'
+        }
+      };
+      
+      logger.error(errorContext, 'Failed to search nyaa.si - Android troubleshooting included');
+      
+      // Create more user-friendly error message for mobile users
+      let userFriendlyMessage = 'Failed to search content from nyaa.si';
+      
+      if (error instanceof Error) {
+        if (error.message.includes('ENOTFOUND') || error.message.includes('ECONNREFUSED')) {
+          userFriendlyMessage = 'Network connection error. Check your internet connection or try switching between mobile data and WiFi.';
+        } else if (error.message.includes('timeout') || error.message.includes('ETIMEDOUT')) {
+          userFriendlyMessage = 'Request timed out. Check your network connection and try again.';
+        } else if (error.message.includes('429') || error.message.toLowerCase().includes('rate limit')) {
+          userFriendlyMessage = 'Too many requests. Please wait a moment before trying again.';
+        } else if (error.message.includes('403') || error.message.includes('forbidden')) {
+          userFriendlyMessage = 'Access restricted. Your network may be blocking nyaa.si.';
+        }
+      }
+      
+      throw new Error(userFriendlyMessage);
     }
   }
 
   private buildSearchUrl(filters: SearchFilters, options: SearchOptions): string {
     const params = new URLSearchParams();
 
-    if (filters.query) {
-      params.set('q', filters.query);
+    // Build search query including quality and language filters
+    let searchQuery = filters.query || '';
+    
+    if (filters.quality) {
+      searchQuery = searchQuery ? `${searchQuery} ${filters.quality}` : filters.quality;
+    }
+    
+    if (filters.language) {
+      // Map language to common search terms
+      const languageMap: Record<string, string> = {
+        'Japanese': 'JP',
+        'English': 'EN',
+        'Chinese': 'CN',
+        'Korean': 'KR',
+        'Dual Audio': 'Dual',
+        'Multi': 'Multi',
+      };
+      const langTerm = languageMap[filters.language] || filters.language;
+      searchQuery = searchQuery ? `${searchQuery} ${langTerm}` : langTerm;
+    }
+
+    if (searchQuery) {
+      params.set('q', searchQuery);
     }
 
     if (filters.category) {
