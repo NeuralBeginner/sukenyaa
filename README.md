@@ -100,11 +100,23 @@ tests/
 
 ## 🔌 Installation dans Stremio
 
+### Installation Standard
+
 1. Démarrez le serveur SukeNyaa
 2. Ouvrez Stremio
 3. Allez dans **Add-ons** > **Community Add-ons**
 4. Collez l'URL : `http://localhost:3000/manifest.json`
 5. Cliquez sur **Install**
+
+### 📱 Installation Android avec Termux
+
+Pour une installation sur smartphone Android avec Termux, consultez le guide détaillé :
+
+**[📋 Guide d'installation Android](./INSTALL_ANDROID.md)**
+
+Le serveur est optimisé pour fonctionner sur localhost (127.0.0.1) et est compatible avec Stremio Android.
+
+**URL d'installation :** `http://localhost:3000/manifest.json`
 
 ## 🛡️ Sécurité et conformité
 
