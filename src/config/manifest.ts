@@ -7,6 +7,7 @@ export const manifest: any = {
   description: config.addon.description,
   logo: config.addon.logo,
   background: config.addon.background,
+  contactEmail: 'dev@sukenyaa.com',
   resources: ['catalog', 'meta', 'stream'],
   types: ['movie', 'series', 'anime', 'other'],
   catalogs: [

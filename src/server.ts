@@ -34,6 +34,10 @@ class Server {
     this.app.use(cors({
       origin: config.server.corsOrigin === '*' ? true : config.server.corsOrigin,
       credentials: false,
+      methods: ['GET', 'POST', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+      exposedHeaders: ['Content-Type'],
+      optionsSuccessStatus: 200 // For legacy browser support
     }));
 
     // Compression
@@ -82,6 +86,43 @@ class Server {
       res.json(manifest);
     });
 
+    // Mount Stremio addon SDK routes manually
+    this.app.get('/catalog/:type/:id.json', async (req, res) => {
+      try {
+        const { type, id } = req.params;
+        const extra = req.query as Record<string, string>;
+        const result = await addonService.getCatalog({ type, id, extra });
+        res.json(result);
+      } catch (error) {
+        logger.error({ error, params: req.params, query: req.query }, 'Catalog request failed');
+        res.status(500).json({ error: 'Internal Server Error' });
+      }
+    });
+
+    this.app.get('/meta/:type/:id.json', async (req, res) => {
+      try {
+        const { type, id } = req.params;
+        const extra = req.query as Record<string, string>;
+        const result = await addonService.getMeta({ type, id, extra });
+        res.json(result);
+      } catch (error) {
+        logger.error({ error, params: req.params, query: req.query }, 'Meta request failed');
+        res.status(500).json({ error: 'Internal Server Error' });
+      }
+    });
+
+    this.app.get('/stream/:type/:id.json', async (req, res) => {
+      try {
+        const { type, id } = req.params;
+        const extra = req.query as Record<string, string>;
+        const result = await addonService.getStream({ type, id, extra });
+        res.json(result);
+      } catch (error) {
+        logger.error({ error, params: req.params, query: req.query }, 'Stream request failed');
+        res.status(500).json({ error: 'Internal Server Error' });
+      }
+    });
+
     // Root route
     this.app.get('/', (req, res) => {
       res.json({
@@ -106,6 +147,9 @@ class Server {
         availableEndpoints: [
           'GET /',
           'GET /manifest.json',
+          'GET /catalog/:type/:id.json',
+          'GET /meta/:type/:id.json', 
+          'GET /stream/:type/:id.json',
           'GET /api/health',
           'GET /api/metrics',
           'GET /api/info',
@@ -150,12 +194,14 @@ class Server {
   public async start(): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
-        this.server = this.app.listen(config.server.port, () => {
+        // Listen on localhost (127.0.0.1) for local connections only
+        this.server = this.app.listen(config.server.port, '127.0.0.1', () => {
           logger.info({
             port: config.server.port,
+            host: '127.0.0.1',
             nodeEnv: config.server.nodeEnv,
             pid: process.pid,
-          }, 'Server started successfully');
+          }, 'Server started successfully on localhost');
           resolve();
         });
 
