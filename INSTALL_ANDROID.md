@@ -96,8 +96,43 @@ curl "http://localhost:3000/catalog/anime/nyaa-anime-all.json?search=Attack+on+T
 # Test rapide du scraper
 npm run test:scraper
 
+# Test de compatibilité Android complet
+npm run test:android
+
 # Debug détaillé de la connectivité
 npm run debug:scraper
+```
+
+### Nouveaux endpoints de monitoring mobile
+
+SukeNyaa inclut maintenant des endpoints spécialisés pour le monitoring mobile :
+
+```bash
+# Santé générale du service
+curl http://localhost:3000/api/health
+
+# Diagnostic spécifique mobile/Android
+curl http://localhost:3000/api/mobile-health
+
+# Test de résilience réseau
+curl http://localhost:3000/api/network-test
+
+# Page de configuration interactive
+# Ouvrir dans le navigateur : http://localhost:3000/configure
+```
+
+### Configuration personnalisée
+
+L'addon dispose maintenant d'une **interface de configuration complète** accessible via :
+- **Interface web** : `http://localhost:3000/configure`
+- **API REST** : `http://localhost:3000/configure/api`
+
+**Fonctionnalités de configuration** :
+- 🔒 **Filtres de contenu** : NSFW, uploaders de confiance, catégories bloquées
+- 🔍 **Préférences de recherche** : Tri par défaut, nombre de résultats, ordre
+- 🎥 **Qualité vidéo** : Priorités 4K/1080p/720p/480p
+- 🌐 **Langues préférées** : Anglais, Japonais, Chinois, Coréen
+- ⚙️ **Options avancées** : Logs détaillés, timeout de cache
 
 # Tests unitaires complets
 npm test
@@ -145,6 +180,12 @@ curl -I https://nyaa.si/
 # Test direct du scraper
 npm run test:scraper
 
+# Test de compatibilité Android complet 
+npm run test:android
+
+# Diagnostic mobile/Android spécialisé
+curl "http://localhost:3000/api/mobile-health"
+
 # Vérifier les logs de requête
 curl "http://localhost:3000/catalog/anime/nyaa-anime-all.json"
 # Vérifier les logs dans la console Termux
@@ -153,11 +194,42 @@ curl "http://localhost:3000/catalog/anime/nyaa-anime-all.json"
 curl "http://localhost:3000/catalog/anime/nyaa-anime-all.json?search=Naruto"
 ```
 
+### Performances lentes ou problèmes de connectivité
+
+```bash
+# Test de résilience réseau
+curl "http://localhost:3000/api/network-test"
+
+# Diagnostic de performance mobile
+curl "http://localhost:3000/api/mobile-health" | jq '.performance'
+
+# Statistiques détaillées
+curl "http://localhost:3000/api/metrics"
+```
+
+### Configuration et préférences
+
+```bash
+# Voir la configuration actuelle
+curl "http://localhost:3000/configure/api"
+
+# Activer les logs détaillés pour le debug
+curl -X POST "http://localhost:3000/configure/api" \
+  -H "Content-Type: application/json" \
+  -d '{"enableDetailedLogging": true}'
+
+# Réinitialiser la configuration
+curl -X POST "http://localhost:3000/configure/reset"
+```
+
 ### Erreurs de parsing ou contenu manquant
 
 ```bash
 # Debug détaillé du scraper
 npm run debug:scraper
+
+# Test de compatibilité Android avec diagnostic
+npm run test:android
 
 # Vérifier la structure HTML retournée
 curl -s "https://nyaa.si/?c=1_0" | head -n 100
@@ -169,10 +241,16 @@ curl "http://localhost:3000/catalog/anime/nyaa-anime-trusted.json"
 ### Performance lente
 
 ```bash
-# Vérifier le cache
+# Diagnostic de performance mobile complet
+curl "http://localhost:3000/api/mobile-health"
+
+# Test de résilience réseau
+curl "http://localhost:3000/api/network-test"
+
+# Vérifier le cache et métriques
 curl "http://localhost:3000/api/metrics"
 
-# Vérifier les métriques de santé
+# Vérifier les métriques de santé générale
 curl "http://localhost:3000/api/health"
 
 # Test de ping réseau

@@ -95,8 +95,11 @@ router.get('/info', (req: Request, res: Response) => {
     description: 'Unofficial Stremio addon for nyaa.si and sukebei.nyaa.si content',
     endpoints: {
       manifest: '/manifest.json',
+      configure: '/configure',
       health: '/health',
       metrics: '/metrics',
+      mobileHealth: '/mobile-health',
+      networkTest: '/network-test',
       cache: {
         stats: '/cache/stats',
         clear: '/cache/clear (POST)',
@@ -104,6 +107,47 @@ router.get('/info', (req: Request, res: Response) => {
     },
     documentation: 'https://github.com/MehdiDlaPgl/sukenyaa',
   });
+});
+
+// Mobile-specific health endpoint
+router.get('/mobile-health', async (req: Request, res: Response) => {
+  try {
+    const performanceReport = await healthService.getMobilePerformanceReport();
+    res.json({
+      timestamp: new Date().toISOString(),
+      platform: {
+        arch: process.arch,
+        platform: process.platform,
+        nodeVersion: process.version,
+      },
+      performance: performanceReport,
+    });
+  } catch (error) {
+    logger.error({ error }, 'Failed to get mobile health metrics');
+    res.status(500).json({ error: 'Failed to retrieve mobile health metrics' });
+  }
+});
+
+// Network resilience test endpoint
+router.get('/network-test', async (req: Request, res: Response) => {
+  try {
+    const networkTest = await healthService.performNetworkResilienceTest();
+    res.json({
+      timestamp: new Date().toISOString(),
+      networkResilience: networkTest,
+      recommendations: networkTest.success 
+        ? ['Network connection is stable and reliable'] 
+        : [
+            'Network connection may be unstable',
+            'Consider switching to WiFi if using mobile data',
+            'Check your internet connection',
+            'Try restarting the addon if issues persist'
+          ]
+    });
+  } catch (error) {
+    logger.error({ error }, 'Failed to perform network test');
+    res.status(500).json({ error: 'Failed to perform network test' });
+  }
 });
 
 export default router;

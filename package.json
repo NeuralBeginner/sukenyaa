@@ -18,7 +18,8 @@
     "docker:build": "docker build -t sukenyaa .",
     "docker:run": "docker run -p 3000:3000 sukenyaa",
     "test:scraper": "npx ts-node scripts/test-scraper.ts",
-    "debug:scraper": "npx ts-node scripts/debug-nyaa.ts"
+    "debug:scraper": "npx ts-node scripts/debug-nyaa.ts",
+    "test:android": "npx ts-node scripts/test-android.ts"
   },
   "keywords": [
     "stremio",

@@ -215,7 +215,10 @@ class Server {
         res.json(result);
       } catch (error) {
         logger.error({ error, params: req.params, query: req.query }, 'Catalog request failed');
-        res.status(500).json({ error: 'Internal Server Error' });
+        
+        // Provide helpful error response for mobile users
+        const errorResponse = this.generateMobileErrorResponse(error, 'catalog', req.params);
+        res.status(500).json(errorResponse);
       }
     });
 
@@ -227,7 +230,10 @@ class Server {
         res.json(result);
       } catch (error) {
         logger.error({ error, params: req.params, query: req.query }, 'Meta request failed');
-        res.status(500).json({ error: 'Internal Server Error' });
+        
+        // Provide helpful error response for mobile users
+        const errorResponse = this.generateMobileErrorResponse(error, 'meta', req.params);
+        res.status(500).json(errorResponse);
       }
     });
 
@@ -239,7 +245,10 @@ class Server {
         res.json(result);
       } catch (error) {
         logger.error({ error, params: req.params, query: req.query }, 'Stream request failed');
-        res.status(500).json({ error: 'Internal Server Error' });
+        
+        // Provide helpful error response for mobile users  
+        const errorResponse = this.generateMobileErrorResponse(error, 'stream', req.params);
+        res.status(500).json(errorResponse);
       }
     });
 
@@ -330,6 +339,8 @@ class Server {
           testStream: '/test/stream/anime/nyaa:12345.json',
           configure: '/configure',
           health: '/api/health',
+          mobileHealth: '/api/mobile-health',
+          networkTest: '/api/network-test',
           metrics: '/api/metrics',
           info: '/api/info',
         },
@@ -446,6 +457,8 @@ class Server {
           'POST /configure/api',
           'POST /configure/reset',
           'GET /api/health',
+          'GET /api/mobile-health',
+          'GET /api/network-test',
           'GET /api/metrics',
           'GET /api/info',
         ],
@@ -720,6 +733,66 @@ class Server {
     </script>
 </body>
 </html>`;
+  }
+
+  private generateMobileErrorResponse(error: any, endpoint: string, params: any): any {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
+    // Detect common error types and provide helpful messages
+    let userFriendlyMessage = '';
+    let troubleshootingSteps = [];
+    
+    if (errorMessage.includes('ENOTFOUND') || errorMessage.includes('ECONNREFUSED')) {
+      userFriendlyMessage = 'Network connection error. Unable to reach nyaa.si';
+      troubleshootingSteps = [
+        'Check your internet connection',
+        'Try switching from mobile data to WiFi',
+        'Wait a few minutes and try again',
+        'Check if nyaa.si is accessible in your browser'
+      ];
+    } else if (errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
+      userFriendlyMessage = 'Request timed out. The server is taking too long to respond';
+      troubleshootingSteps = [
+        'Check your network connection speed',
+        'Try again with a more stable connection',
+        'Reduce the number of results in configuration if possible'
+      ];
+    } else if (errorMessage.includes('rate limit') || errorMessage.includes('429')) {
+      userFriendlyMessage = 'Too many requests. Please wait before trying again';
+      troubleshootingSteps = [
+        'Wait 1-2 minutes before making another request',
+        'Avoid making too many searches in quick succession',
+        'Consider increasing cache timeout in configuration'
+      ];
+    } else if (errorMessage.includes('Parse') || errorMessage.includes('JSON')) {
+      userFriendlyMessage = 'Data parsing error. The response format was unexpected';
+      troubleshootingSteps = [
+        'This might be a temporary issue with nyaa.si',
+        'Try again in a few minutes',
+        'Check if the site is working properly'
+      ];
+    } else {
+      userFriendlyMessage = `${endpoint} service temporarily unavailable`;
+      troubleshootingSteps = [
+        'Check your internet connection',
+        'Try again in a few minutes',
+        'Restart the app if the problem persists',
+        'Check the health endpoint: /api/mobile-health'
+      ];
+    }
+    
+    return {
+      error: 'Service Error',
+      message: userFriendlyMessage,
+      endpoint: endpoint,
+      troubleshooting: troubleshootingSteps,
+      technicalDetails: config.server.nodeEnv === 'development' ? {
+        originalError: errorMessage,
+        params: params
+      } : undefined,
+      timestamp: new Date().toISOString(),
+      helpUrl: '/api/mobile-health'
+    };
   }
 
   private setupErrorHandling(): void {
