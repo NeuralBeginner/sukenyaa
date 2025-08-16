@@ -10,7 +10,7 @@ SukeNyaa est un add-on non officiel pour Stremio qui agrège et organise le cont
 - 🔒 **Filtrage de contenu** avec exclusion stricte des contenus inappropriés
 - 📊 **Monitoring** avec métriques de santé et endpoints de surveillance
 - 🐳 **Support Docker** pour un déploiement facile
-- 🛡️ **Sécurisé** avec protection rate limiting et validation des données
+- 🛡️ **Sécurisé** avec protection rate limiting avancée et validation des données
 - ⚡ **Configuration automatique** - Détection de plateforme et optimisation zero-config
 - 🎯 **Installation automatisée** - Scripts universels pour tous les environnements
 - 🔧 **Auto-résolution d'erreurs** - Détection et correction automatique des problèmes courants
@@ -20,6 +20,9 @@ SukeNyaa est un add-on non officiel pour Stremio qui agrège et organise le cont
 - 🧠 **Mise en cache intelligente** - Priorisation des métadonnées avec fallback intelligent
 - 🔄 **Cross-référencement** - Navigation croisée fluide entre extensions
 - 📈 **Diagnostics avancés** - Logs explicites pour résoudre les conflits d'extensions
+- 📱 **Compatibilité Android/Termux** - Surveillance d'activité et gestion des limitations mobiles
+- ⏱️ **Gestion intelligente du rate limiting** - Protection contre les surcharges avec files d'attente
+- 🔄 **Gestion d'erreurs robuste** - Prévention des plantages Stremio avec messages utilisateur clairs
 
 ## 🚀 Installation rapide
 
@@ -195,6 +198,31 @@ Variables d'environnement pour les intégrations :
 - Consultez `http://localhost:3000/api/integrations/diagnostics`
 - Désactivez les fonctionnalités en doublon
 - Vérifiez les logs pour plus de détails
+
+**Limites de débit ?**
+- Consultez `http://localhost:3000/api/rate-limit/status`
+- Attendez la réinitialisation automatique (2-5 minutes)
+- Utilisez des termes de recherche plus spécifiques
+- Vérifiez la configuration du cache
+
+**Problèmes Android/Termux ?**
+- Consultez `http://localhost:3000/api/activity/status`
+- Gardez Termux au premier plan pendant l'utilisation
+- Configurez `termux-wake-lock` pour éviter la mise en pause
+- Consultez [INSTALL_ANDROID.md](INSTALL_ANDROID.md) pour plus de détails
+
+### 🔧 Endpoints de diagnostic
+
+**Surveillance en temps réel :**
+- `/api/health` - État global du système
+- `/api/rate-limit/status` - Statut des limitations de débit
+- `/api/activity/status` - Activité du serveur (Android/Termux)
+- `/api/integrations` - État des intégrations TMDB et extensions
+
+**Actions de maintenance :**
+- `POST /api/rate-limit/clear` - Effacer manuellement les limites de débit
+- `POST /api/cache/clear` - Vider le cache
+- `POST /api/integrations/cache/clear` - Vider le cache des intégrations
 
 ## 🔧 Développement
 

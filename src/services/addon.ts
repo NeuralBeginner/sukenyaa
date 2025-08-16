@@ -376,12 +376,98 @@ class AddonService {
 
   private extractTitleFromId(id: string): string {
     try {
-      const cleanId = id.replace('nyaa:', '');
-      const decoded = decodeURIComponent(cleanId);
-      return decoded.length > 30 ? decoded.substring(0, 30) + '...' : decoded;
+      const { torrentId } = this.parseContentId(id);
+      
+      // Try to get the torrent from cache first for better title
+      const cachedTorrent = this.getCachedTorrentData(torrentId);
+      if (cachedTorrent) {
+        return cachedTorrent.title.length > 30 
+          ? cachedTorrent.title.substring(0, 30) + '...' 
+          : cachedTorrent.title;
+      }
+      
+      // Fallback to ID
+      return torrentId.length > 30 ? torrentId.substring(0, 30) + '...' : torrentId;
     } catch {
       return 'Content';
     }
+  }
+
+  private async findTorrentById(torrentId: string, contentType: string): Promise<TorrentItem | null> {
+    // First check cache
+    let torrent = this.getCachedTorrentData(torrentId);
+    if (torrent) {
+      return torrent;
+    }
+
+    // If not in cache, search recent content to try to find it
+    const filters: SearchFilters = {};
+    
+    // Set category based on type
+    if (contentType === 'anime') {
+      filters.category = '1_0'; // Anime category
+    } else if (contentType === 'movie') {
+      filters.category = '4_0'; // Live Action category
+    }
+
+    const options = {
+      page: 1,
+      limit: 50, // Search more items to increase chance of finding it
+      sort: 'date' as const, // Recent first
+      order: 'desc' as const,
+    };
+
+    try {
+      const searchResult = await this.nyaaScraper.search(filters, options);
+      
+      // Try to find the specific torrent by ID
+      const foundTorrent = searchResult.items.find(item => item.id === torrentId);
+      
+      if (foundTorrent) {
+        // Cache it for future requests
+        this.cacheTorrentData(foundTorrent.id, foundTorrent);
+        return foundTorrent;
+      }
+      
+      // If exact match not found, but we have results, log for debugging
+      if (searchResult.items.length > 0) {
+        logger.debug({
+          requestedId: torrentId,
+          foundIds: searchResult.items.slice(0, 5).map(item => item.id),
+          contentType,
+        }, 'Exact torrent ID not found in recent results');
+      }
+      
+    } catch (error) {
+      logger.warn({
+        error: error instanceof Error ? error.message : String(error),
+        torrentId,
+        contentType,
+      }, 'Failed to search for specific torrent');
+    }
+
+    return null;
+  }
+
+  private generateContentId(torrent: TorrentItem): string {
+    // Always use the nyaa torrent ID for consistency
+    // This ensures catalog, meta, and stream all use the same ID format
+    return `nyaa:${torrent.id}`;
+  }
+
+  private parseContentId(id: string): { source: string; torrentId: string } {
+    if (id.startsWith('nyaa:')) {
+      return {
+        source: 'nyaa',
+        torrentId: id.replace('nyaa:', ''),
+      };
+    }
+    
+    // Fallback for legacy or malformed IDs
+    return {
+      source: 'nyaa',
+      torrentId: id,
+    };
   }
 
   private cacheTorrentData(id: string, torrent: TorrentItem): void {
@@ -401,8 +487,8 @@ class AddonService {
   }
 
   private torrentToMeta(torrent: TorrentItem): MetaInfo {
-    // Use the actual torrent ID instead of encoded title
-    const id = `nyaa:${torrent.id}`;
+    // Use consistent ID generation
+    const id = this.generateContentId(torrent);
     
     // Cache the full torrent data for meta/stream requests
     this.cacheTorrentData(torrent.id, torrent);
@@ -1004,50 +1090,14 @@ class AddonService {
 
       metricsService.recordCacheMiss();
 
-      // Extract torrent ID from args.id (format: nyaa:torrentId)
-      const torrentId = args.id.replace('nyaa:', '');
+      // Extract torrent ID using consistent parsing
+      const { torrentId } = this.parseContentId(args.id);
       
-      // First try to get from torrent cache
-      let torrent = this.getCachedTorrentData(torrentId);
-      
-      if (!torrent) {
-        // If not in cache, try to search for it
-        // Use the torrent ID to search, or fall back to partial search
-        const filters: SearchFilters = {};
-        
-        // Set category based on type
-        if (args.type === 'anime') {
-          filters.category = '1_0'; // Anime category
-        } else if (args.type === 'movie') {
-          filters.category = '4_0'; // Live Action category
-        }
-
-        const options = {
-          page: 1,
-          limit: 20, // Get more results to find the right one
-          sort: 'date' as const,
-          order: 'desc' as const,
-        };
-
-        const searchResult = await this.nyaaScraper.search(filters, options);
-        
-        // Try to find the specific torrent by ID
-        const foundTorrent = searchResult.items.find(item => item.id === torrentId);
-        torrent = foundTorrent || null;
-        
-        if (!torrent && searchResult.items.length > 0) {
-          // Fallback to first result if exact match not found
-          torrent = searchResult.items[0]!;
-          logger.warn({ 
-            args, 
-            requestedId: torrentId, 
-            foundId: torrent.id 
-          }, 'Exact torrent not found, using fallback');
-        }
-      }
+      // Try to find the torrent using our helper method
+      const torrent = await this.findTorrentById(torrentId, args.type);
 
       if (!torrent) {
-        throw new Error('Content not found');
+        throw new Error(`Torrent with ID ${torrentId} not found`);
       }
 
       const meta = this.torrentToMeta(torrent);
@@ -1083,18 +1133,18 @@ class AddonService {
 
       metricsService.recordCacheMiss();
 
-      // Extract torrent ID from args.id (format: nyaa:torrentId)
-      const torrentId = args.id.replace('nyaa:', '');
+      // Extract torrent ID using consistent parsing
+      const { torrentId } = this.parseContentId(args.id);
       
-      // First try to get from torrent cache
-      let torrent = this.getCachedTorrentData(torrentId);
+      // Try to find the torrent using our helper method
+      const torrent = await this.findTorrentById(torrentId, args.type);
       let streams: StreamInfo[] = [];
       
       if (torrent) {
-        // If we have the exact torrent, create stream for it
+        // If we found the exact torrent, create stream for it
         streams = [this.torrentToStream(torrent)];
       } else {
-        // If not in cache, search for similar content
+        // If specific torrent not found, search for similar content as fallback
         const filters: SearchFilters = {};
         
         // Set category based on type
@@ -1111,19 +1161,52 @@ class AddonService {
           order: 'desc' as const,
         };
 
-        const searchResult = await this.nyaaScraper.search(filters, options);
-        
-        // Try to find the specific torrent by ID, or use all results
-        const specificTorrent = searchResult.items.find(item => item.id === torrentId);
-        if (specificTorrent) {
-          streams = [this.torrentToStream(specificTorrent)];
-        } else {
-          // Fallback: return all results as potential streams
+        try {
+          const searchResult = await this.nyaaScraper.search(filters, options);
+          
+          // Return all results as potential streams
           streams = searchResult.items.map((item) => this.torrentToStream(item));
+          
+          logger.info({
+            args,
+            requestedTorrentId: torrentId,
+            fallbackStreamCount: streams.length,
+          }, 'Specific torrent not found, providing fallback streams');
+          
+        } catch (searchError) {
+          logger.warn({
+            args,
+            requestedTorrentId: torrentId,
+            searchError: searchError instanceof Error ? searchError.message : String(searchError),
+          }, 'Failed to find specific torrent and fallback search failed');
+          
+          // Return empty streams - error handling will provide user message
+          streams = [];
         }
       }
 
       const result = { streams };
+      
+      // If no streams found, add helpful message
+      if (streams.length === 0) {
+        logger.warn({
+          args,
+          requestedTorrentId: torrentId,
+        }, 'No streams found for requested content');
+        
+        // Add an informational "stream" that explains the issue
+        const infoStream = {
+          name: 'SukeNyaa - No Sources',
+          title: `📭 No sources available for this content`,
+          url: '', // Empty URL - not playable
+          behaviorHints: {
+            notWebReady: true,
+          },
+        };
+        
+        result.streams = [infoStream];
+      }
+      
       await cacheService.set(cacheKey, result, 1800); // Cache for 30 minutes
 
       logger.info({
