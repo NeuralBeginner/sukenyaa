@@ -4,6 +4,7 @@ import { config } from '../config';
 import { logger } from '../utils/logger';
 import { cacheService } from './cache';
 import { metricsService } from './metrics';
+import { configurationService } from './config';
 import NyaaScraper from './nyaaScraper';
 import { TorrentItem, SearchFilters, MetaInfo, StreamInfo } from '../types';
 
@@ -30,27 +31,35 @@ class AddonService {
     // Catalog handler
     this.builder.defineCatalogHandler(async (args: AddonArgs) => {
       const startTime = Date.now();
-      const cacheKey = `catalog:${args.type}:${args.id}:${JSON.stringify(args.extra)}`;
-
+      
       try {
+        // Get user configuration
+        const userConfig = await configurationService.getUserConfiguration();
+        
+        // Include user config in cache key to ensure personalized results
+        const cacheKey = `catalog:${args.type}:${args.id}:${JSON.stringify(args.extra)}:${JSON.stringify(userConfig)}`;
+
         // Try cache first
         const cached = await cacheService.get<{ metas: MetaInfo[] }>(cacheKey);
         if (cached) {
           metricsService.recordCacheHit();
-          logger.info({ args, responseTime: Date.now() - startTime }, 'Catalog request (cached)');
+          if (userConfig.enableDetailedLogging) {
+            logger.info({ args, responseTime: Date.now() - startTime }, 'Catalog request (cached)');
+          }
           return cached;
         }
 
         metricsService.recordCacheMiss();
 
-        // Build search filters from catalog parameters
+        // Build search filters from catalog parameters and user preferences
         const filters: SearchFilters = {};
 
         if (args.extra?.search) {
           filters.query = args.extra.search;
         }
 
-        filters.trusted = args.id.includes('trusted');
+        // Apply user configuration
+        filters.trusted = args.id.includes('trusted') || userConfig.trustedUploadersOnly;
 
         // Map catalog type to nyaa category
         if (args.type === 'anime') {
@@ -61,9 +70,9 @@ class AddonService {
 
         const options = {
           page: 1,
-          limit: 50,
-          sort: 'date' as const,
-          order: 'desc' as const,
+          limit: Math.min(userConfig.maxResults, 75), // Respect user preference
+          sort: userConfig.defaultSort as 'date' | 'seeders' | 'size' | 'title',
+          order: userConfig.defaultOrder as 'asc' | 'desc',
         };
 
         if (args.extra?.skip) {
@@ -71,19 +80,76 @@ class AddonService {
         }
 
         const searchResult = await this.nyaaScraper.search(filters, options);
-        const metas = searchResult.items.map((item) => this.torrentToMeta(item));
+        
+        // Apply additional user-based filtering and sorting
+        let filteredItems = searchResult.items;
+        
+        // Filter by preferred quality if specified
+        if (userConfig.preferredQuality.length > 0) {
+          filteredItems = this.filterByQuality(filteredItems, userConfig.preferredQuality);
+        }
+        
+        // Filter by preferred languages if specified
+        if (userConfig.preferredLanguages.length > 0) {
+          filteredItems = this.filterByLanguage(filteredItems, userConfig.preferredLanguages);
+        }
+
+        const metas = filteredItems.map((item) => this.torrentToMeta(item));
+
+        // Handle empty results with user-friendly message
+        if (metas.length === 0) {
+          const emptyMessage = this.generateEmptyResultsMessage(args, userConfig);
+          logger.warn(
+            {
+              args,
+              userConfig: userConfig.enableDetailedLogging ? userConfig : undefined,
+              message: emptyMessage,
+            },
+            'Catalog request returned no results'
+          );
+          
+          // Return empty catalog with helpful meta information
+          return { 
+            metas: [{
+              id: 'sukenyaa:empty',
+              type: args.type,
+              name: '🔍 No Results Found',
+              poster: 'https://nyaa.si/static/img/avatar/default.png',
+              description: emptyMessage,
+              year: new Date().getFullYear().toString(),
+              genres: ['Info'],
+            }] 
+          };
+        }
 
         const result = { metas };
-        await cacheService.set(cacheKey, result, 300); // Cache for 5 minutes
+        await cacheService.set(cacheKey, result, userConfig.cacheTimeout);
 
-        logger.info(
-          {
-            args,
-            itemCount: metas.length,
-            responseTime: Date.now() - startTime,
-          },
-          'Catalog request completed'
-        );
+        if (userConfig.enableDetailedLogging) {
+          logger.info(
+            {
+              args,
+              userConfig: { 
+                trustedOnly: userConfig.trustedUploadersOnly,
+                maxResults: userConfig.maxResults,
+                sort: userConfig.defaultSort,
+                order: userConfig.defaultOrder,
+              },
+              itemCount: metas.length,
+              responseTime: Date.now() - startTime,
+            },
+            'Catalog request completed with user preferences'
+          );
+        } else {
+          logger.info(
+            {
+              args,
+              itemCount: metas.length,
+              responseTime: Date.now() - startTime,
+            },
+            'Catalog request completed'
+          );
+        }
 
         return result;
       } catch (error) {
@@ -334,23 +400,122 @@ class AddonService {
     return genres;
   }
 
+  private filterByQuality(items: TorrentItem[], preferredQualities: string[]): TorrentItem[] {
+    // If no quality preference, return all items
+    if (preferredQualities.length === 0) {
+      return items;
+    }
+
+    // Sort items to prioritize preferred qualities
+    return items.sort((a, b) => {
+      const aQuality = a.quality || '';
+      const bQuality = b.quality || '';
+      
+      const aIndex = preferredQualities.findIndex(q => aQuality.includes(q));
+      const bIndex = preferredQualities.findIndex(q => bQuality.includes(q));
+      
+      // Items with preferred quality come first
+      if (aIndex !== -1 && bIndex === -1) return -1;
+      if (aIndex === -1 && bIndex !== -1) return 1;
+      
+      // Both have preferred quality, sort by preference order
+      if (aIndex !== -1 && bIndex !== -1) {
+        return aIndex - bIndex;
+      }
+      
+      // Neither has preferred quality, maintain original order
+      return 0;
+    });
+  }
+
+  private filterByLanguage(items: TorrentItem[], preferredLanguages: string[]): TorrentItem[] {
+    // If no language preference, return all items
+    if (preferredLanguages.length === 0) {
+      return items;
+    }
+
+    // Sort items to prioritize preferred languages
+    return items.sort((a, b) => {
+      const aTitle = a.title.toLowerCase();
+      const bTitle = b.title.toLowerCase();
+      
+      const aHasPreferred = preferredLanguages.some(lang => 
+        aTitle.includes(lang.toLowerCase()) || 
+        aTitle.includes('dual audio') ||
+        aTitle.includes('multi') ||
+        (lang === 'Japanese' && (aTitle.includes('jp') || aTitle.includes('jpn'))) ||
+        (lang === 'English' && (aTitle.includes('eng') || aTitle.includes('en')))
+      );
+      
+      const bHasPreferred = preferredLanguages.some(lang => 
+        bTitle.includes(lang.toLowerCase()) || 
+        bTitle.includes('dual audio') ||
+        bTitle.includes('multi') ||
+        (lang === 'Japanese' && (bTitle.includes('jp') || bTitle.includes('jpn'))) ||
+        (lang === 'English' && (bTitle.includes('eng') || bTitle.includes('en')))
+      );
+      
+      // Items with preferred language come first
+      if (aHasPreferred && !bHasPreferred) return -1;
+      if (!aHasPreferred && bHasPreferred) return 1;
+      
+      // Maintain original order for equal priority
+      return 0;
+    });
+  }
+
+  private generateEmptyResultsMessage(args: AddonArgs, userConfig: any): string {
+    const reasons = [];
+    
+    if (args.extra?.search) {
+      reasons.push(`search term "${args.extra.search}"`);
+    }
+    
+    if (userConfig.trustedUploadersOnly) {
+      reasons.push('trusted uploaders only filter');
+    }
+    
+    if (userConfig.preferredQuality.length > 0) {
+      reasons.push(`quality filter (${userConfig.preferredQuality.join(', ')})`);
+    }
+    
+    if (userConfig.preferredLanguages.length > 0) {
+      reasons.push(`language filter (${userConfig.preferredLanguages.join(', ')})`);
+    }
+    
+    const baseMessage = `No ${args.type} content found`;
+    
+    if (reasons.length > 0) {
+      return `${baseMessage} matching your criteria: ${reasons.join(', ')}. Try adjusting your search terms or configuration settings.`;
+    }
+    
+    return `${baseMessage}. This could be due to network issues with nyaa.si or temporary unavailability. Please try again later.`;
+  }
+
   // Public methods to expose handlers directly
   async getCatalog(args: AddonArgs): Promise<{ metas: MetaInfo[] }> {
     const startTime = Date.now();
-    const cacheKey = `catalog:${args.type}:${args.id}:${JSON.stringify(args.extra)}`;
+
+    // Get user configuration first for cacheKey
+    const userConfig = await configurationService.getUserConfiguration();
+    
+    // Include user config in cache key to ensure personalized results
+    const cacheKey = `catalog:${args.type}:${args.id}:${JSON.stringify(args.extra)}:${JSON.stringify(userConfig)}`;
 
     try {
       // Try cache first
       const cached = await cacheService.get<{ metas: MetaInfo[] }>(cacheKey);
       if (cached) {
         metricsService.recordCacheHit();
-        logger.info({ args, responseTime: Date.now() - startTime }, 'Catalog request (cached)');
+        if (userConfig.enableDetailedLogging) {
+          logger.info({ args, responseTime: Date.now() - startTime }, 'Catalog request (cached)');
+        }
         return cached;
       }
 
       metricsService.recordCacheMiss();
 
-      // Build search filters from catalog parameters
+      // Build search filters from catalog parameters and user preferences
       const filters: SearchFilters = {};
 
       if (args.extra?.search) {
@@ -362,65 +527,131 @@ class AddonService {
         filters.query = filters.query ? `${filters.query} ${args.extra.genre}` : args.extra.genre;
       }
 
+      // Apply user configuration
+      filters.trusted = args.id.includes('trusted') || userConfig.trustedUploadersOnly;
+
       // Set category based on catalog ID
       if (args.id === 'nyaa-anime-all' || args.id === 'nyaa-anime-trusted') {
         filters.category = '1_0'; // Anime category
-        if (args.id === 'nyaa-anime-trusted') {
-          filters.trusted = true; // Trusted only
-        }
       } else if (args.type === 'movie') {
         filters.category = '4_0'; // Live Action category
       }
 
       const options = {
         page: 1,
-        limit: 50,
-        sort: 'date' as const,
-        order: 'desc' as const,
+        limit: Math.min(userConfig.maxResults, 75), // Respect user preference
+        sort: userConfig.defaultSort as 'date' | 'seeders' | 'size' | 'title',
+        order: userConfig.defaultOrder as 'asc' | 'desc',
       };
 
       if (args.extra?.skip) {
         options.page = Math.floor(parseInt(args.extra.skip) / options.limit) + 1;
       }
 
-      logger.info({ 
-        args, 
-        filters, 
-        options, 
-        cacheKey 
-      }, 'Processing catalog request');
+      if (userConfig.enableDetailedLogging) {
+        logger.info({ 
+          args, 
+          filters, 
+          options, 
+          userConfig: {
+            trustedOnly: userConfig.trustedUploadersOnly,
+            maxResults: userConfig.maxResults,
+            sort: userConfig.defaultSort,
+            order: userConfig.defaultOrder,
+          },
+          cacheKey 
+        }, 'Processing catalog request with user preferences');
+      }
 
       const searchResult = await this.nyaaScraper.search(filters, options);
       
-      logger.info({
-        args,
-        searchResultCount: searchResult.items.length,
-        totalPages: searchResult.pagination.totalPages,
-        totalItems: searchResult.pagination.totalItems
-      }, 'Search completed, converting to metas');
+      // Apply additional user-based filtering and sorting
+      let filteredItems = searchResult.items;
+      
+      // Filter by preferred quality if specified
+      if (userConfig.preferredQuality.length > 0) {
+        filteredItems = this.filterByQuality(filteredItems, userConfig.preferredQuality);
+      }
+      
+      // Filter by preferred languages if specified
+      if (userConfig.preferredLanguages.length > 0) {
+        filteredItems = this.filterByLanguage(filteredItems, userConfig.preferredLanguages);
+      }
 
-      const metas = searchResult.items.map((item) => this.torrentToMeta(item));
+      if (userConfig.enableDetailedLogging) {
+        logger.info({
+          args,
+          searchResultCount: searchResult.items.length,
+          filteredCount: filteredItems.length,
+          totalPages: searchResult.pagination.totalPages,
+          totalItems: searchResult.pagination.totalItems
+        }, 'Search completed, applying user filters');
+      }
 
-      logger.info({
-        args,
-        metasGenerated: metas.length,
-        sampleMeta: metas[0] ? {
-          id: metas[0].id,
-          type: metas[0].type,
-          name: metas[0].name?.substring(0, 50) + '...',
-          hasYear: !!metas[0].year,
-          genreCount: metas[0].genres?.length || 0
-        } : null
-      }, 'Metas conversion completed');
+      const metas = filteredItems.map((item) => this.torrentToMeta(item));
+
+      // Handle empty results with user-friendly message
+      if (metas.length === 0) {
+        const emptyMessage = this.generateEmptyResultsMessage(args, userConfig);
+        logger.warn(
+          {
+            args,
+            userConfig: userConfig.enableDetailedLogging ? userConfig : undefined,
+            message: emptyMessage,
+          },
+          'Catalog request returned no results'
+        );
+        
+        // Return empty catalog with helpful meta information
+        return { 
+          metas: [{
+            id: 'sukenyaa:empty',
+            type: args.type,
+            name: '🔍 No Results Found',
+            poster: 'https://nyaa.si/static/img/avatar/default.png',
+            description: emptyMessage,
+            year: new Date().getFullYear().toString(),
+            genres: ['Info'],
+          }] 
+        };
+      }
+
+      if (userConfig.enableDetailedLogging) {
+        logger.info({
+          args,
+          metasGenerated: metas.length,
+          sampleMeta: metas[0] ? {
+            id: metas[0].id,
+            type: metas[0].type,
+            name: metas[0].name?.substring(0, 50) + '...',
+            hasYear: !!metas[0].year,
+            genreCount: metas[0].genres?.length || 0
+          } : null
+        }, 'Metas conversion completed with user preferences');
+      }
 
       const result = { metas };
-      await cacheService.set(cacheKey, result, 300); // Cache for 5 minutes
+      await cacheService.set(cacheKey, result, userConfig.cacheTimeout);
 
-      logger.info({
-        args,
-        itemCount: metas.length,
-        responseTime: Date.now() - startTime,
-      }, 'Catalog request completed successfully');
+      if (userConfig.enableDetailedLogging) {
+        logger.info({
+          args,
+          itemCount: metas.length,
+          responseTime: Date.now() - startTime,
+          userConfigApplied: {
+            trustedOnly: userConfig.trustedUploadersOnly,
+            maxResults: userConfig.maxResults,
+            sort: userConfig.defaultSort,
+            order: userConfig.defaultOrder,
+          }
+        }, 'Catalog request completed successfully with user preferences');
+      } else {
+        logger.info({
+          args,
+          itemCount: metas.length,
+          responseTime: Date.now() - startTime,
+        }, 'Catalog request completed successfully');
+      }
 
       return result;
     } catch (error) {
