@@ -183,8 +183,44 @@ class AddonService {
 
         return result;
       } catch (error) {
-        logger.error({ error, args }, 'Catalog request failed');
-        throw error;
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        
+        // Enhanced error handling with user-friendly messages
+        let userFriendlyError: any = {
+          id: 'sukenyaa:error',
+          type: args.type,
+          name: '❌ Request Failed',
+          poster: 'https://nyaa.si/static/img/avatar/default.png',
+          description: this.generateErrorDescription(errorMessage, args),
+          year: new Date().getFullYear().toString(),
+          genres: ['Error'],
+        };
+
+        // Specific handling for rate limit errors
+        if (errorMessage.toLowerCase().includes('rate limit') || 
+            errorMessage.toLowerCase().includes('too many requests')) {
+          userFriendlyError.name = '⏱️ Rate Limited';
+          userFriendlyError.description = `${errorMessage}\n\nTip: Wait a few minutes before trying again. The addon is protecting against overloading nyaa.si servers.`;
+          userFriendlyError.genres = ['Rate Limit'];
+        }
+
+        logger.error({ 
+          error: error instanceof Error ? {
+            message: error.message,
+            stack: error.stack,
+            name: error.name
+          } : error, 
+          args,
+          userFriendlyMessage: userFriendlyError.description,
+        }, 'Catalog request failed with user-friendly error handling');
+        
+        // Return error meta instead of throwing to prevent Stremio crashes
+        const errorResult = { metas: [userFriendlyError] };
+        
+        // Cache error result briefly to avoid repeated failed requests
+        await cacheService.set(`catalog:${args.type}:${args.id}:error`, errorResult, 60);
+        
+        return errorResult;
       }
     });
 
@@ -240,8 +276,29 @@ class AddonService {
 
         return result;
       } catch (error) {
-        logger.error({ error, args }, 'Meta request failed');
-        throw error;
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        
+        logger.error({ 
+          error: error instanceof Error ? {
+            message: error.message,
+            stack: error.stack,
+            name: error.name
+          } : error, 
+          args,
+        }, 'Meta request failed - providing fallback meta');
+        
+        // Return a fallback meta instead of throwing to prevent crashes
+        const fallbackMeta = {
+          id: args.id,
+          type: args.type,
+          name: `⚠️ ${this.extractTitleFromId(args.id)}`,
+          poster: 'https://nyaa.si/static/img/avatar/default.png',
+          description: this.generateErrorDescription(errorMessage, args),
+          year: new Date().getFullYear().toString(),
+          genres: ['Error'],
+        };
+        
+        return { meta: fallbackMeta };
       }
     });
 
@@ -290,10 +347,41 @@ class AddonService {
 
         return result;
       } catch (error) {
-        logger.error({ error, args }, 'Stream request failed');
-        throw error;
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        
+        logger.error({ 
+          error: error instanceof Error ? {
+            message: error.message,
+            stack: error.stack,
+            name: error.name
+          } : error, 
+          args,
+        }, 'Stream request failed - providing empty streams with error info');
+        
+        // Return empty streams instead of throwing to prevent crashes
+        // Include a helpful stream that explains the error
+        const errorStream = {
+          name: 'SukeNyaa - Error',
+          title: `❌ Error: ${errorMessage.substring(0, 50)}...`,
+          url: '', // Empty URL - won't be playable but provides info
+          behaviorHints: {
+            notWebReady: true,
+          },
+        };
+        
+        return { streams: [errorStream] };
       }
     });
+  }
+
+  private extractTitleFromId(id: string): string {
+    try {
+      const cleanId = id.replace('nyaa:', '');
+      const decoded = decodeURIComponent(cleanId);
+      return decoded.length > 30 ? decoded.substring(0, 30) + '...' : decoded;
+    } catch {
+      return 'Content';
+    }
   }
 
   private cacheTorrentData(id: string, torrent: TorrentItem): void {
@@ -607,6 +695,48 @@ class AddonService {
       // Maintain original order for equal priority
       return 0;
     });
+  }
+
+  private generateErrorDescription(errorMessage: string, args: any): string {
+    let description = `Error: ${errorMessage}`;
+    
+    if (errorMessage.toLowerCase().includes('rate limit')) {
+      description = `⏱️ Rate Limit Protection Active\n\n` +
+                   `The addon has temporarily limited requests to protect nyaa.si servers from being overloaded. ` +
+                   `This helps ensure the service remains available for everyone.\n\n` +
+                   `What you can do:\n` +
+                   `• Wait 2-5 minutes before trying again\n` +
+                   `• Use more specific search terms to reduce requests\n` +
+                   `• Check /api/rate-limit/status for current status\n\n` +
+                   `This is a normal protective measure and will resolve automatically.`;
+    } else if (errorMessage.toLowerCase().includes('network') || 
+               errorMessage.toLowerCase().includes('connection')) {
+      description = `🌐 Network Connection Issue\n\n` +
+                   `Unable to connect to nyaa.si. This could be due to:\n` +
+                   `• Temporary network issues\n` +
+                   `• nyaa.si being temporarily unavailable\n` +
+                   `• Your network blocking access to nyaa.si\n\n` +
+                   `For Android/Termux users:\n` +
+                   `• Check if Termux is running in background\n` +
+                   `• Switch between WiFi and mobile data\n` +
+                   `• Check /api/activity/status for server status`;
+    } else if (errorMessage.toLowerCase().includes('timeout')) {
+      description = `⏰ Request Timeout\n\n` +
+                   `The request took too long to complete. This might be due to:\n` +
+                   `• Slow network connection\n` +
+                   `• High server load on nyaa.si\n` +
+                   `• Termux being paused in background (Android)\n\n` +
+                   `Try again in a moment or check your connection.`;
+    } else {
+      description = `❌ ${errorMessage}\n\n` +
+                   `Request details: ${args.type} catalog (${args.id})\n` +
+                   `If this persists, check:\n` +
+                   `• /api/health for system status\n` +
+                   `• /api/activity/status for Android/Termux issues\n` +
+                   `• Your network connectivity`;
+    }
+    
+    return description;
   }
 
   private generateEmptyResultsMessage(args: AddonArgs, userConfig: any): string {

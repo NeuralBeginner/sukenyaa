@@ -4,6 +4,8 @@ import { config } from '../config';
 import { TorrentItem, SearchFilters, SearchOptions, SearchResult } from '../types';
 import { logger } from '../utils/logger';
 import { ContentFilter } from '../utils/contentFilter';
+import { rateLimitManager } from './rateLimitManager';
+import { cacheService } from './cache';
 
 export class NyaaScraper {
   private client: AxiosInstance;
@@ -25,131 +27,60 @@ export class NyaaScraper {
   }
 
   async search(filters: SearchFilters = {}, options: SearchOptions = {}): Promise<SearchResult> {
-    await this.throttle();
-
     const page = options.page || 1;
     const limit = Math.min(options.limit || 75, 75); // Nyaa shows max 75 items per page
-    const maxRetries = 3;
-    let lastError: Error | null = null;
+    
+    // Create cache key for this search
+    const cacheKey = `search:${JSON.stringify(filters)}:${JSON.stringify(options)}`;
+    
+    // Use rate limit manager to execute the request
+    return await rateLimitManager.executeRequest<SearchResult>(async () => {
+      const url = this.buildSearchUrl(filters, options);
+      logger.info({ 
+        url, 
+        filters, 
+        options,
+        rateLimitStatus: rateLimitManager.getRateLimitStatus(),
+      }, 'Executing search request through rate limit manager');
 
-    // Retry mechanism for improved reliability
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        const url = this.buildSearchUrl(filters, options);
-        logger.info({ 
-          url, 
-          filters, 
-          options, 
-          attempt, 
-          maxRetries 
-        }, `Searching nyaa.si (attempt ${attempt}/${maxRetries})`);
+      const response = await this.client.get(url);
+      const $ = cheerio.load(response.data);
 
-        const response = await this.client.get(url);
-        const $ = cheerio.load(response.data);
+      const items = this.parseSearchResults($);
+      const filteredItems = ContentFilter.filterTorrents(items);
 
-        const items = this.parseSearchResults($);
-        const filteredItems = ContentFilter.filterTorrents(items);
+      // Apply client-side limit if needed
+      const startIndex = 0;
+      const endIndex = Math.min(limit, filteredItems.length);
+      const paginatedItems = filteredItems.slice(startIndex, endIndex);
 
-        // Apply client-side limit if needed
-        const startIndex = 0;
-        const endIndex = Math.min(limit, filteredItems.length);
-        const paginatedItems = filteredItems.slice(startIndex, endIndex);
+      const totalPages = this.extractTotalPages($);
+      const totalItems = this.estimateTotalItems($, totalPages);
 
-        const totalPages = this.extractTotalPages($);
-        const totalItems = this.estimateTotalItems($, totalPages);
-
-        const result = {
-          items: paginatedItems,
-          pagination: {
-            currentPage: page,
-            totalPages,
-            totalItems,
-            hasNext: page < totalPages,
-            hasPrev: page > 1,
-          },
-        };
-
-        // Log successful attempt if it wasn't the first try
-        if (attempt > 1) {
-          logger.info({ 
-            attempt, 
-            itemCount: paginatedItems.length,
-            filters,
-            options 
-          }, 'Search succeeded after retry');
-        }
-
-        return result;
-      } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
-        
-        logger.warn({ 
-          error: {
-            message: lastError.message,
-            code: (lastError as any).code
-          },
-          attempt, 
-          maxRetries,
-          filters,
-          options,
-          willRetry: attempt < maxRetries 
-        }, `Search attempt ${attempt} failed${attempt < maxRetries ? ', retrying...' : ''}`);
-
-        // If this isn't the last attempt, wait before retrying
-        if (attempt < maxRetries) {
-          const backoffDelay = Math.min(1000 * Math.pow(2, attempt - 1), 5000); // Exponential backoff, max 5s
-          logger.info({ 
-            delay: backoffDelay, 
-            nextAttempt: attempt + 1 
-          }, 'Waiting before retry');
-          
-          await new Promise(resolve => setTimeout(resolve, backoffDelay));
-        }
-      }
-    }
-
-    // All retries exhausted, handle the final error
-    if (lastError) {
-      // Enhanced error logging with Android-specific troubleshooting
-      const errorContext = {
-        error: {
-          message: lastError.message,
-          code: (lastError as any).code,
-          stack: lastError.stack
+      const result = {
+        items: paginatedItems,
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalItems,
+          hasNext: page < totalPages,
+          hasPrev: page > 1,
         },
+      };
+
+      // Cache the result for future requests
+      await cacheService.set(cacheKey, result, 300); // Cache for 5 minutes
+
+      logger.info({ 
+        itemCount: paginatedItems.length,
+        totalPages,
         filters,
         options,
-        attemptsExhausted: maxRetries,
-        userAgent: 'nyaaScraper',
-        timestamp: new Date().toISOString(),
-        androidTroubleshooting: {
-          networkIssue: 'Check mobile data or WiFi connection',
-          dnsIssue: 'Try switching between mobile data and WiFi',
-          firewallIssue: 'Some networks may block nyaa.si access',
-          siteDown: 'nyaa.si may be temporarily unavailable'
-        }
-      };
-      
-      logger.error(errorContext, `Failed to search nyaa.si after ${maxRetries} attempts - Android troubleshooting included`);
-      
-      // Create more user-friendly error message for mobile users
-      let userFriendlyMessage = 'Failed to search content from nyaa.si after multiple attempts';
-      
-      if (lastError.message.includes('ENOTFOUND') || lastError.message.includes('ECONNREFUSED')) {
-        userFriendlyMessage = 'Network connection error. Check your internet connection or try switching between mobile data and WiFi.';
-      } else if (lastError.message.includes('timeout') || lastError.message.includes('ETIMEDOUT')) {
-        userFriendlyMessage = 'Request timed out repeatedly. Check your network connection and try again later.';
-      } else if (lastError.message.includes('429') || lastError.message.toLowerCase().includes('rate limit')) {
-        userFriendlyMessage = 'Too many requests. Please wait several minutes before trying again.';
-      } else if (lastError.message.includes('403') || lastError.message.includes('forbidden')) {
-        userFriendlyMessage = 'Access restricted. Your network may be blocking nyaa.si.';
-      }
-      
-      throw new Error(userFriendlyMessage);
-    }
+        cached: true,
+      }, 'Search completed successfully and cached');
 
-    // This should never be reached, but just in case
-    throw new Error('Search failed for unknown reasons after all retry attempts');
+      return result;
+    }, cacheKey);
   }
 
   private buildSearchUrl(filters: SearchFilters, options: SearchOptions): string {
@@ -388,9 +319,10 @@ export class NyaaScraper {
 
   async checkHealth(): Promise<boolean> {
     try {
-      await this.throttle();
-      const response = await this.client.get('/', { timeout: 5000 });
-      return response.status === 200;
+      return await rateLimitManager.executeRequest<boolean>(async () => {
+        const response = await this.client.get('/', { timeout: 5000 });
+        return response.status === 200;
+      });
     } catch {
       return false;
     }

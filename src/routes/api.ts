@@ -5,6 +5,8 @@ import { cacheService } from '../services/cache';
 import { integrationService } from '../services/integrationService';
 import { tmdbIntegrationService } from '../services/tmdbIntegration';
 import { stremioIntegrationService } from '../services/stremioIntegration';
+import { rateLimitManager } from '../services/rateLimitManager';
+import { serverActivityMonitor } from '../services/serverActivityMonitor';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -112,10 +114,21 @@ router.get('/info', (req: Request, res: Response) => {
       integrations: '/integrations',
       tmdbStatus: '/integrations/tmdb/status',
       extensionScan: '/integrations/extensions/scan',
+      rateLimitStatus: '/rate-limit/status',
+      activityStatus: '/activity/status',
+      activityReport: '/activity/report',
       cache: {
         stats: '/cache/stats',
         clear: '/cache/clear (POST)',
         clearIntegrations: '/integrations/cache/clear (POST)',
+      },
+      rateLimit: {
+        status: '/rate-limit/status',
+        clear: '/rate-limit/clear (POST)',
+      },
+      activity: {
+        status: '/activity/status',
+        report: '/activity/report',
       },
     },
     documentation: 'https://github.com/MehdiDlaPgl/sukenyaa',
@@ -362,6 +375,97 @@ router.post('/integrations/cache/clear', async (req: Request, res: Response) => 
   } catch (error) {
     logger.error({ error }, 'Failed to clear integration cache');
     res.status(500).json({ error: 'Failed to clear integration cache' });
+  }
+});
+
+// Rate limit status and management
+router.get('/rate-limit/status', (req: Request, res: Response) => {
+  try {
+    const status = rateLimitManager.getRateLimitStatus();
+    const queueStatus = rateLimitManager.getQueueStatus();
+    
+    res.json({
+      timestamp: new Date().toISOString(),
+      rateLimit: status,
+      queue: queueStatus,
+      userMessage: status.isLimited 
+        ? `Rate limited. Please wait ${Math.ceil(status.delayMs / 1000)} seconds before trying again.`
+        : 'No rate limit restrictions currently active',
+      recommendations: status.isLimited 
+        ? [
+            'Wait for the rate limit to reset',
+            'Try using search filters to reduce the number of requests',
+            'Enable caching to reduce repeated requests',
+            'Check your network connection stability'
+          ]
+        : [
+            'Search functionality is operating normally',
+            'Cache is helping reduce request frequency',
+            'Rate limiting is protecting against overuse'
+          ]
+    });
+  } catch (error) {
+    logger.error({ error }, 'Failed to get rate limit status');
+    res.status(500).json({ error: 'Failed to retrieve rate limit status' });
+  }
+});
+
+// Clear rate limit manually (for debugging)
+router.post('/rate-limit/clear', async (req: Request, res: Response) => {
+  try {
+    logger.info({
+      ip: req.ip,
+      userAgent: req.get('User-Agent'),
+    }, 'Manual rate limit clear requested');
+    
+    await rateLimitManager.clearRateLimit();
+    
+    res.json({
+      timestamp: new Date().toISOString(),
+      message: 'Rate limit manually cleared',
+      warning: 'Use this feature responsibly to avoid overwhelming nyaa.si servers',
+    });
+  } catch (error) {
+    logger.error({ error }, 'Failed to clear rate limit');
+    res.status(500).json({ error: 'Failed to clear rate limit' });
+  }
+});
+
+// Server activity monitoring for Android/Termux
+router.get('/activity/status', (req: Request, res: Response) => {
+  try {
+    // Record this API request as activity
+    serverActivityMonitor.recordActivity('request');
+    
+    const status = serverActivityMonitor.getActivityStatus();
+    
+    res.json({
+      timestamp: new Date().toISOString(),
+      activity: status,
+      userMessage: status.termuxInBackground 
+        ? '⚠️ Server may be paused due to Termux being in background. Keep Termux app open for best performance.'
+        : status.isActive 
+          ? '✅ Server is active and responding normally'
+          : '⚠️ Server appears inactive - check network connectivity',
+    });
+  } catch (error) {
+    logger.error({ error }, 'Failed to get activity status');
+    res.status(500).json({ error: 'Failed to retrieve activity status' });
+  }
+});
+
+// Detailed activity report for troubleshooting
+router.get('/activity/report', async (req: Request, res: Response) => {
+  try {
+    // Record this API request as activity
+    serverActivityMonitor.recordActivity('request');
+    
+    const report = await serverActivityMonitor.generateActivityReport();
+    
+    res.json(report);
+  } catch (error) {
+    logger.error({ error }, 'Failed to generate activity report');
+    res.status(500).json({ error: 'Failed to generate activity report' });
   }
 });
 

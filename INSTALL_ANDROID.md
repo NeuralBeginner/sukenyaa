@@ -177,6 +177,15 @@ curl -I https://nyaa.si/
 ### Le catalogue est vide ou ne charge pas
 
 ```bash
+# Vérifier la connectivité vers nyaa.si
+curl -I https://nyaa.si/
+
+# Vérifier l'état des limites de débit
+curl http://localhost:3000/api/rate-limit/status
+
+# Vérifier l'activité du serveur (spécial Android)
+curl http://localhost:3000/api/activity/status
+
 # Test direct du scraper
 npm run test:scraper
 
@@ -188,6 +197,37 @@ curl "http://localhost:3000/api/mobile-health"
 
 # Vérifier les logs de requête
 curl "http://localhost:3000/catalog/anime/nyaa-anime-all.json"
+```
+
+**Erreurs fréquentes et solutions :**
+
+- **"⏱️ Rate Limited"** : Le serveur protège contre la surcharge de nyaa.si
+  - Attendez 2-5 minutes avant de réessayer
+  - Vérifiez le statut : `curl http://localhost:3000/api/rate-limit/status`
+  
+- **"🌐 Network Connection Issue"** : Problème de connectivité
+  - Vérifiez votre connexion internet
+  - Basculez entre WiFi et données mobiles
+  - Testez : `curl -I https://nyaa.si/`
+
+- **"⏰ Request Timeout"** : Requête trop lente
+  - Serveur nyaa.si surchargé
+  - Termux en arrière-plan (Android) - vérifiez `/api/activity/status`
+  - Redémarrez le serveur si nécessaire
+
+- **"⚠️ Server may be paused"** : Détection de Termux en arrière-plan
+  - Ramenez Termux au premier plan
+  - Utilisez `termux-wake-lock` pour éviter la mise en pause
+  - Configurez les paramètres d'optimisation batterie Android
+
+**Réglage des paramètres pour réduire les erreurs :**
+```bash
+# Accéder à l'interface de configuration
+curl http://localhost:3000/configure
+
+# Réduire le nombre de résultats pour moins de requêtes
+# Augmenter le délai de cache pour moins de requêtes répétées
+# Activer uniquement les sources nécessaires
 # Vérifier les logs dans la console Termux
 
 # Test avec recherche spécifique
@@ -333,6 +373,83 @@ echo 'cd ~/sukenyaa && npm start' >> ~/.bashrc
 2. **Utilisez un gestionnaire de sessions** : `screen` ou `tmux` pour faire tourner le serveur en arrière-plan
 3. **Économisez la batterie** : Fermez l'addon quand vous ne l'utilisez pas
 4. **Mises à jour** : Exécutez `git pull && npm install && npm run build` pour mettre à jour
+
+### 🔧 Gestion du Wake Lock (Recommandé pour Android)
+
+Pour éviter que Termux soit mis en pause en arrière-plan :
+
+```bash
+# Installer termux-wake-lock
+pkg install termux-api
+
+# Activer le wake lock avant de démarrer le serveur
+termux-wake-lock
+
+# Dans un nouvel onglet/session, démarrer le serveur
+npm start
+
+# Pour désactiver le wake lock plus tard
+termux-wake-unlock
+```
+
+### 📱 Optimisation Android spécifique
+
+**Paramètres Android à vérifier :**
+1. **Optimisation de la batterie** : Désactivez l'optimisation de batterie pour Termux
+   - Paramètres → Batterie → Optimisation de batterie → Termux → Ne pas optimiser
+2. **Applications protégées** : Ajoutez Termux à la liste des applications protégées
+   - Paramètres → Batterie → Applications protégées → Termux
+3. **Autorisation de démarrage automatique** : Autorisez Termux à se lancer automatiquement
+   - Paramètres → Applications → Gestion des applications → Termux → Démarrage automatique
+
+### 🛠️ Surveillance du serveur
+
+Le plugin inclut maintenant un système de surveillance pour détecter les problèmes Android :
+
+```bash
+# Vérifier l'état du serveur
+curl http://localhost:3000/api/activity/status
+
+# Rapport détaillé pour dépannage
+curl http://localhost:3000/api/activity/report
+
+# Vérifier les limites de débit
+curl http://localhost:3000/api/rate-limit/status
+```
+
+### 🔄 Session Manager avec Screen/Tmux
+
+**Avec Screen :**
+```bash
+# Installer screen
+pkg install screen
+
+# Créer une session nommée
+screen -S sukenyaa
+
+# Démarrer le serveur dans la session
+cd sukenyaa && npm start
+
+# Détacher la session (Ctrl+A puis D)
+# Pour se reconnecter plus tard :
+screen -r sukenyaa
+```
+
+**Avec Tmux :**
+```bash
+# Installer tmux
+pkg install tmux
+
+# Créer une session nommée
+tmux new-session -s sukenyaa
+
+# Démarrer le serveur
+cd sukenyaa && npm start
+
+# Détacher la session (Ctrl+B puis D)
+# Pour se reconnecter plus tard :
+tmux attach-session -t sukenyaa
+```
 
 ## 🔧 Résolution de problèmes
 
