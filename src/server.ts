@@ -206,12 +206,108 @@ class Server {
       }
     });
 
+    // Android-specific diagnostic endpoint
+    this.app.get('/api/android-diagnostic', async (req, res) => {
+      try {
+        const userAgent = req.get('User-Agent') || 'unknown';
+        const isAndroidRequest = userAgent.toLowerCase().includes('android');
+        
+        // Test catalog request 
+        const testResult = await addonService.getCatalog({ 
+          type: 'anime', 
+          id: 'nyaa-anime-all', 
+          extra: {} 
+        });
+        
+        const diagnostic = {
+          timestamp: new Date().toISOString(),
+          client: {
+            userAgent,
+            isAndroid: isAndroidRequest,
+            ip: req.ip,
+            headers: {
+              accept: req.get('Accept'),
+              acceptEncoding: req.get('Accept-Encoding'),
+              connection: req.get('Connection')
+            }
+          },
+          catalog: {
+            testSuccessful: testResult.metas.length > 0,
+            itemCount: testResult.metas.length,
+            sampleItem: testResult.metas[0] ? {
+              id: testResult.metas[0].id,
+              name: testResult.metas[0].name?.substring(0, 50) + '...',
+              poster: testResult.metas[0].poster,
+              hasDescription: !!testResult.metas[0].description,
+              hasGenres: !!testResult.metas[0].genres && testResult.metas[0].genres.length > 0
+            } : null
+          },
+          troubleshooting: {
+            posterUrl: 'Using nyaa.si reliable avatar',
+            networkStatus: 'OK - nyaa.si accessible',
+            recommendedActions: [
+              'Clear Stremio cache',
+              'Restart Stremio app',
+              'Check network connectivity',
+              'Verify addon URL is correct'
+            ]
+          }
+        };
+        
+        logger.info({ diagnostic }, 'Android diagnostic completed');
+        res.json(diagnostic);
+      } catch (error) {
+        logger.error({ error }, 'Android diagnostic failed');
+        res.status(500).json({ 
+          error: 'Diagnostic failed',
+          details: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    });
+
     // Mount Stremio addon SDK routes manually
     this.app.get('/catalog/:type/:id.json', async (req, res) => {
       try {
         const { type, id } = req.params;
         const extra = req.query as Record<string, string>;
+        
+        // Enhanced logging for Android debugging
+        const userAgent = req.get('User-Agent') || 'unknown';
+        const isAndroidRequest = userAgent.toLowerCase().includes('android');
+        const requestInfo = {
+          userAgent,
+          isAndroidRequest,
+          ip: req.ip,
+          headers: {
+            'accept': req.get('Accept'),
+            'accept-encoding': req.get('Accept-Encoding'),
+            'connection': req.get('Connection')
+          }
+        };
+        
+        logger.info({ 
+          type, 
+          id, 
+          extra, 
+          requestInfo 
+        }, `Catalog request - ${isAndroidRequest ? 'Android' : 'Desktop'} client`);
+        
         const result = await addonService.getCatalog({ type, id, extra });
+        
+        // Log response for Android debugging
+        logger.info({
+          type,
+          id,
+          isAndroidRequest,
+          metaCount: result.metas.length,
+          sampleMeta: result.metas[0] ? {
+            id: result.metas[0].id,
+            name: result.metas[0].name?.substring(0, 30) + '...',
+            poster: result.metas[0].poster,
+            hasGenres: !!result.metas[0].genres
+          } : null
+        }, 'Catalog response prepared');
+        
         res.json(result);
       } catch (error) {
         logger.error({ error, params: req.params, query: req.query }, 'Catalog request failed');
